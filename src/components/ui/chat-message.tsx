@@ -28,6 +28,7 @@ import {
   Loader,
   Pencil,
   Share2,
+  TriangleAlert,
 } from "lucide-react-native";
 import {
   memo,
@@ -83,8 +84,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loading } from "@/components/ui/loading";
 import { Message, MessageFooter } from "@/components/ui/message";
+import { ProcessingStatus } from "@/components/ui/processing-status";
+import { ToolTrace } from "@/components/ui/tool-trace";
 import {
   isTextWorkspaceFile,
   resolveWorkspaceFile,
@@ -171,6 +173,9 @@ type ChatMessageProps = {
   canEditAndResend?: boolean;
   message: StoredMessage;
   onEditMessage?: (content: string) => void;
+  onInterrupt?: () => void;
+  onOpenHistory?: () => void;
+  onRetry?: () => void;
   onSavePrompt?: (content: string) => void;
   workspaceFiles: WorkspaceFile[];
 };
@@ -799,6 +804,9 @@ export const ChatMessage = memo(function ChatMessage({
   canEditAndResend = false,
   message,
   onEditMessage,
+  onInterrupt,
+  onOpenHistory,
+  onRetry,
   onSavePrompt,
   workspaceFiles,
 }: ChatMessageProps) {
@@ -1022,6 +1030,12 @@ export const ChatMessage = memo(function ChatMessage({
   };
   const memoryEvents = message.metadata?.memoryEvents ?? [];
   const todoList = message.metadata?.todoList ?? [];
+  const toolRecords = message.metadata?.toolExecutions ?? [];
+  const wasInterrupted =
+    isAssistant &&
+    message.status === "failed" &&
+    message.error === null &&
+    /\b(Stopped\.|interrupted)\b/i.test(message.content);
   const completedTaskCount = todoList.filter(
     (task) => task.status === "completed",
   ).length;
@@ -1257,6 +1271,13 @@ export const ChatMessage = memo(function ChatMessage({
                     </View>
                   ) : null}
 
+                  {toolRecords.length > 0 ? (
+                    <ToolTrace
+                      onRetry={onRetry}
+                      records={toolRecords}
+                    />
+                  ) : null}
+
                   {message.content.trim() ? (
                     <MarkdownContent
                       content={message.content}
@@ -1267,6 +1288,13 @@ export const ChatMessage = memo(function ChatMessage({
                     <Text className="font-sans text-base text-foreground dark:text-foreground-dark">
                       {memoryEventLabel}
                     </Text>
+                  ) : null}
+                  {wasInterrupted ? (
+                    <View className="self-start rounded-pill border border-border px-sp-2 py-0.5 dark:border-border-dark">
+                      <Text className="font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
+                        Interrupted — you can send a new message
+                      </Text>
+                    </View>
                   ) : null}
                   {generatedImages.length > 0 ? (
                     <View className="gap-sp-2">
@@ -1298,7 +1326,15 @@ export const ChatMessage = memo(function ChatMessage({
                       ))}
                     </View>
                   ) : null}
-                  {message.status === "streaming" ? <Loading /> : null}
+                  {message.status === "streaming" ? (
+                    <ProcessingStatus
+                      contentLength={message.content.length}
+                      createdAt={message.createdAt}
+                      onInterrupt={onInterrupt}
+                      onOpenHistory={onOpenHistory}
+                      tokens={message.metadata?.usage?.outputTokens ?? null}
+                    />
+                  ) : null}
                 </View>
               ) : (
                 <DropdownMenu>
@@ -1429,6 +1465,27 @@ export const ChatMessage = memo(function ChatMessage({
               </Button>
             ) : null}
           </MessageFooter>
+        ) : null}
+
+        {isAssistant && message.status === "failed" && !wasInterrupted ? (
+          <View className="max-w-full flex-row items-center gap-sp-2 rounded-ui border border-destructive/50 px-sp-3 py-sp-2">
+            <TriangleAlert color={theme.destructive} size={16} />
+            <Text className="min-w-0 flex-1 font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark" numberOfLines={2}>
+              {message.error ?? "Something went wrong."}
+            </Text>
+            {onRetry ? (
+              <Pressable
+                accessibilityRole="button"
+                className="rounded-pill border border-border px-sp-3 py-1 dark:border-border-dark"
+                onPress={onRetry}
+                style={({ pressed }) => (pressed ? { opacity: 0.7 } : null)}
+              >
+                <Text className="font-sans text-xs font-semibold text-foreground dark:text-foreground-dark">
+                  Retry
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
 
         {isAssistant && memoryExpanded && memoryEvents.length > 0 ? (

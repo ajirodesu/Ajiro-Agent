@@ -677,7 +677,7 @@ Follow all rules in <rules>
 Use the <examples> so you know what a good title looks like.
 Your output must be:
 - A single line
-- ≤50 characters
+- â‰¤50 characters
 - No explanations
 </task>
 
@@ -687,8 +687,8 @@ Your output must be:
 </rules>
 
 <examples>
-"write a blog post on x and store in my notion" → Blog for X
-"checkout x repo on github" → Explore X Repo
+"write a blog post on x and store in my notion" â†’ Blog for X
+"checkout x repo on github" â†’ Explore X Repo
 </examples>
 `;
         const fallback = buildConversationTitle(input.firstUserMessage);
@@ -2659,8 +2659,8 @@ Your output must be:
                 createExecutionTimelineEvent({
                     createdAt: timestamp,
                     detail: model
-                        ? `${model.providerLabel} · ${model.label}`
-                        : `${run.providerId} · ${run.modelId}`,
+                        ? `${model.providerLabel} Â· ${model.label}`
+                        : `${run.providerId} Â· ${run.modelId}`,
                     kind: "run",
                     status: "pending",
                     title: "Run queued",
@@ -2994,7 +2994,7 @@ Your output must be:
             appliedSkillIds,
             executionTimeline: [
                 createExecutionTimelineEvent({
-                    detail: `${model.providerLabel} · ${model.label}`,
+                    detail: `${model.providerLabel} Â· ${model.label}`,
                     kind: "run",
                     status: "pending",
                     title: "Run queued",
@@ -3155,7 +3155,7 @@ Your output must be:
                 appliedSkillIds,
                 executionTimeline: [
                     createExecutionTimelineEvent({
-                        detail: `${model.providerLabel} · ${model.label}`,
+                        detail: `${model.providerLabel} Â· ${model.label}`,
                         kind: "run",
                         status: "pending",
                         title: "Run queued",
@@ -3369,6 +3369,7 @@ export function useAppState() {
 
     return {
         dismissInAppNotification: context.dismissInAppNotification,
+        agentRuns: context.agentRuns,
         ready: context.ready,
         hydrating: context.hydrating,
         modelDiscoveryInProgress: context.modelDiscoveryInProgress,

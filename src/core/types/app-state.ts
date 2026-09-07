@@ -172,7 +172,7 @@ export type GeneratedImageAttachment = {
 
 export type ToolExecutionRecord = {
   toolName: string;
-  status: "completed" | "failed";
+  status: "completed" | "failed" | "pending";
   inputSummary: string;
   outputSummary: string | null;
   error: string | null;

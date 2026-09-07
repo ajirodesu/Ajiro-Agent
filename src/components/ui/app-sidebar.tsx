@@ -40,8 +40,11 @@ import { useAppState } from "@/hooks/use-app-state";
 import { useChat } from "@/hooks/use-chat";
 import { usePathname, useRouter } from "expo-router";
 import {
+  Activity,
   AudioLines,
   BookMarked,
+  Check,
+  ChevronDown,
   Clock,
   EllipsisVertical,
   FolderOpen,
@@ -55,11 +58,14 @@ import {
   Search,
   SquarePen,
   Trash2,
+  X,
 } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 
 import type { Conversation } from "@/core/types/app-state";
+import { ACTIVE_AGENT_RUN_STATUSES } from "@/modules/runtime/run-manager";
+import { useElapsedSeconds } from "@/components/ui/processing-status";
 import { useTheme } from "@/hooks/use-theme";
 
 const ACCENT_BLUE = "#3B82F6";
@@ -83,7 +89,7 @@ export function AppSidebar() {
   const theme = useTheme();
   const pathname = usePathname();
   const router = useRouter();
-  const { hydrating } = useAppState();
+  const { agentRuns, hydrating } = useAppState();
   const {
     conversations,
     createConversation,
@@ -94,10 +100,15 @@ export function AppSidebar() {
   } = useChat();
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [tasksOpen, setTasksOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Conversation | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
+
+  const activeRuns = agentRuns.filter((run) =>
+    ACTIVE_AGENT_RUN_STATUSES.includes(run.status),
+  );
 
   const query = searchQuery.trim().toLowerCase();
   const visibleConversations = query
@@ -217,6 +228,32 @@ export function AppSidebar() {
               Ajiro Agent
             </Text>
             <View className="flex-row items-center gap-sp-2">
+              {activeRuns.length > 0 ? (
+                <Pressable
+                  accessibilityLabel={`${activeRuns.length} background tasks running`}
+                  accessibilityRole="button"
+                  className="h-14 w-14 items-center justify-center rounded-full"
+                  onPress={() => {
+                    setTasksOpen((current) => !current);
+                  }}
+                  style={({ pressed }) => ({
+                    backgroundColor: "#2A2A2A",
+                    opacity: pressed ? 0.85 : 1,
+                  })}
+                >
+                  <View className="relative">
+                    <Activity color={ACCENT_BLUE} size={24} strokeWidth={1.75} />
+                    <View
+                      className="absolute -right-2 -top-1 h-4 min-w-4 items-center justify-center rounded-pill px-1"
+                      style={{ backgroundColor: ACCENT_BLUE }}
+                    >
+                      <Text className="font-sans text-[10px] font-bold text-white">
+                        {activeRuns.length}
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+              ) : null}
               <HeaderIconButton
                 accessibilityLabel="Search chats"
                 onPress={() => {
@@ -243,6 +280,35 @@ export function AppSidebar() {
                 placeholder="Search chats…"
                 value={searchQuery}
               />
+            </View>
+          ) : null}
+
+          {tasksOpen ? (
+            <View className="mb-sp-2 gap-sp-1 rounded-ui border border-border p-sp-2 dark:border-border-dark">
+              <View className="flex-row items-center justify-between px-1 pb-1">
+                <Text className="font-sans text-sm font-bold text-muted-foreground dark:text-muted-foreground-dark">
+                  Background tasks
+                </Text>
+                <Pressable
+                  accessibilityLabel="Close background tasks"
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={() => {
+                    setTasksOpen(false);
+                  }}
+                >
+                  <X color={theme.textSecondary} size={16} />
+                </Pressable>
+              </View>
+              {activeRuns.length > 0 ? (
+                activeRuns.map((run) => (
+                  <BackgroundTaskRow key={run.id} run={run} />
+                ))
+              ) : (
+                <Text className="px-1 pb-1 font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
+                  No active tasks.
+                </Text>
+              )}
             </View>
           ) : null}
 
@@ -448,6 +514,61 @@ export function AppSidebar() {
         </ModalContent>
       </Modal>
     </>
+  );
+}
+
+function BackgroundTaskRow({
+  run,
+}: {
+  run: {
+    conversationId: string;
+    input: string;
+    startedAt: string;
+    status: string;
+  };
+}) {
+  const theme = useTheme();
+  const { conversations, selectConversation } = useChat();
+  const router = useRouter();
+  const elapsed = useElapsedSeconds(run.startedAt, true);
+  const conversation = conversations.find(
+    (candidate) => candidate.id === run.conversationId,
+  );
+  const isDone = run.status === "completed";
+  const isFailed = run.status === "failed" || run.status === "canceled";
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      className="flex-row items-center gap-sp-2 rounded-ui px-sp-2 py-sp-2"
+      onPress={() => {
+        selectConversation(run.conversationId)
+          .then(() => {
+            router.push("/");
+          })
+          .catch(console.error);
+      }}
+      style={({ pressed }) => (pressed ? { opacity: 0.8 } : null)}
+    >
+      <View className="w-5 items-center">
+        {isDone ? (
+          <Check color={theme.textSecondary} size={14} />
+        ) : isFailed ? (
+          <X color={theme.destructive} size={14} />
+        ) : (
+          <ActivityIndicator color={theme.textSecondary} size="small" />
+        )}
+      </View>
+      <Text
+        className="min-w-0 flex-1 font-sans text-sm text-foreground dark:text-foreground-dark"
+        numberOfLines={1}
+      >
+        {run.input || conversation?.title || "Task"}
+      </Text>
+      <Text className="font-mono text-xs text-muted-foreground dark:text-muted-foreground-dark">
+        {elapsed}s
+      </Text>
+    </Pressable>
   );
 }
 

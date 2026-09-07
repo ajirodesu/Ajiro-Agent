@@ -350,6 +350,9 @@ export default function Screen() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<string | null>(null);
   const [editNonce, setEditNonce] = useState(0);
+  const [historyDrawerMessageId, setHistoryDrawerMessageId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     setEditDraft(null);
@@ -429,6 +432,37 @@ export default function Screen() {
     },
     [editAndResendMessage, editingMessageId],
   );
+  const handleRetryMessage = useCallback(
+    async (failedMessage: StoredMessage) => {
+      if (currentConversationBusy) {
+        return;
+      }
+
+      const ordered = [...messagesRef.current];
+      const failedIndex = ordered.findIndex(
+        (item) => item.id === failedMessage.id,
+      );
+
+      for (let index = failedIndex - 1; index >= 0; index -= 1) {
+        const candidate = ordered[index];
+
+        if (candidate.role === "user") {
+          try {
+            await editAndResendMessage(candidate.id, candidate.content);
+          } catch (retryError) {
+            Alert.alert(
+              "Retry failed",
+              retryError instanceof Error
+                ? retryError.message
+                : "Could not resend the message.",
+            );
+          }
+          return;
+        }
+      }
+    },
+    [currentConversationBusy, editAndResendMessage],
+  );
   const handleOpenSettings = useCallback(() => {
     router.push("/settings");
   }, [router]);
@@ -443,6 +477,19 @@ export default function Screen() {
         }
         message={message}
         onEditMessage={handleEditMessage}
+        onInterrupt={() => {
+          stopSending().catch(console.error);
+        }}
+        onOpenHistory={() => {
+          setHistoryDrawerMessageId(message.id);
+        }}
+        onRetry={
+          message.status === "failed" && !currentConversationBusy
+            ? () => {
+                handleRetryMessage(message).catch(console.error);
+              }
+            : undefined
+        }
         onSavePrompt={handleSavePrompt}
         workspaceFiles={
           message.metadata?.selectedFileIds?.length
@@ -454,8 +501,10 @@ export default function Screen() {
     [
       currentConversationBusy,
       handleEditMessage,
+      handleRetryMessage,
       handleSavePrompt,
       latestUserMessageId,
+      stopSending,
       workspaceFiles,
     ],
   );
@@ -687,6 +736,68 @@ export default function Screen() {
               onSubmit={submitPendingQuestionnaire}
             />
           ) : null}
+
+          <Drawer
+            onOpenChange={(open) => {
+              if (!open) {
+                setHistoryDrawerMessageId(null);
+              }
+            }}
+            open={historyDrawerMessageId !== null}
+          >
+            <DrawerContent showCloseButton showHandle size={520}>
+              <DrawerHeader>
+                <DrawerTitle>Step history</DrawerTitle>
+                <DrawerDescription>
+                  Everything the agent did during this run, in order.
+                </DrawerDescription>
+              </DrawerHeader>
+              <DrawerBody
+                contentContainerClassName="gap-sp-2 pb-sp-4"
+              >
+                {(() => {
+                  const historyMessage = messages.find(
+                    (candidate) => candidate.id === historyDrawerMessageId,
+                  );
+                  const events =
+                    historyMessage?.metadata?.executionTimeline ?? [];
+
+                  if (events.length === 0) {
+                    return (
+                      <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
+                        No steps recorded for this run yet.
+                      </Text>
+                    );
+                  }
+
+                  return events.map((event, index) => (
+                    <View
+                      key={event.id}
+                      className="gap-1 rounded-ui border border-border bg-card px-sp-3 py-sp-2 dark:border-border-dark dark:bg-card-dark"
+                    >
+                      <View className="flex-row items-center justify-between gap-sp-2">
+                        <Text className="flex-1 font-sans text-sm font-medium text-foreground dark:text-foreground-dark">
+                          {index + 1}. {event.title}
+                        </Text>
+                        <Text className="font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
+                          {event.status}
+                        </Text>
+                      </View>
+                      {event.detail ? (
+                        <Text
+                          className="font-mono text-xs text-muted-foreground dark:text-muted-foreground-dark"
+                          numberOfLines={4}
+                          selectable
+                        >
+                          {event.detail}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ));
+                })()}
+              </DrawerBody>
+            </DrawerContent>
+          </Drawer>
 
           <Drawer onOpenChange={setInfoDrawerOpen} open={infoDrawerOpen}>
             <DrawerContent showCloseButton showHandle>

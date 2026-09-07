@@ -1,10 +1,10 @@
-# Mobile Agent
+# Ajiro Agent
 
-Mobile Agent is an open-source AI agent built specifically for mobile devices that runs entirely on your phone.
+Ajiro Agent is an open-source AI agent built specifically for mobile devices that runs entirely on your phone.
 
 ## Demo
 
-[![Mobile Agent demo](https://img.youtube.com/vi/_P_SQ0MW-aU/maxresdefault.jpg)](https://youtu.be/_P_SQ0MW-aU?si=klxA4b7RU3Y2j5iy)
+[![Ajiro Agent demo](https://img.youtube.com/vi/_P_SQ0MW-aU/maxresdefault.jpg)](https://youtu.be/_P_SQ0MW-aU?si=klxA4b7RU3Y2j5iy)
 
 ## Features
 
@@ -25,7 +25,7 @@ The application is distributed through GitHub Releases.
 1. Download the latest APK from the Releases page.
 2. Install the APK on your Android device.
 3. Grant the required permissions.
-4. Start using Mobile Agent.
+4. Start using Ajiro Agent.
 
 ## Contributing
 

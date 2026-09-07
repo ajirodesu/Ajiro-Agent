@@ -1,16 +1,16 @@
+import { DismissibleBanner } from "@/components/ui/dismissible-banner";
+import { migrateAppDatabase } from "@/core/db/database";
 import { useAppState } from "@/hooks/use-app-state";
 import { useChat } from "@/hooks/use-chat";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useTheme } from "@/hooks/use-theme";
-import { DismissibleBanner } from "@/components/ui/dismissible-banner";
-import { migrateAppDatabase } from "@/core/db/database";
-import { AppStateProvider } from "@/providers/app-state";
-import { UpdateProvider, useUpdate } from "@/providers/check-for-updates";
-import { AppQueryProvider } from "@/providers/query-provider";
 import {
   TOOL_APPROVAL_APPROVE_ACTION_ID,
   TOOL_APPROVAL_REJECT_ACTION_ID,
 } from "@/modules/notifications/run-notifications";
+import { AppStateProvider } from "@/providers/app-state";
+import { UpdateProvider, useUpdate } from "@/providers/check-for-updates";
+import { AppQueryProvider } from "@/providers/query-provider";
 import * as Notifications from "expo-notifications";
 import {
   DarkTheme,
@@ -24,8 +24,8 @@ import { SQLiteProvider } from "expo-sqlite";
 import { X } from "lucide-react-native";
 import { useEffect, useRef } from "react";
 import { Pressable, Text, View } from "react-native";
-import { KeyboardProvider } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import "./global.css";
 
 SplashScreen.preventAutoHideAsync();
@@ -263,7 +263,7 @@ export default function MainLayout() {
         <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
           <AppQueryProvider>
             <SQLiteProvider
-              databaseName="mobile-agent.db"
+              databaseName="ajiro-agent.db"
               onInit={migrateAppDatabase}
             >
               <AppStateProvider>

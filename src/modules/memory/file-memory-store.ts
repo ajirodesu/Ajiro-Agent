@@ -1,17 +1,17 @@
-import { Directory, File, Paths } from "expo-file-system";
 import { desc, isNull } from "drizzle-orm";
+import { Directory, File, Paths } from "expo-file-system";
 
-import { memories } from "@/core/db/schema";
 import { nowIso } from "@/core/db/repositories/shared";
 import type { AppDatabase } from "@/core/db/repositories/types";
-import type { MemoryStore } from "@/modules/memory/types";
+import { memories } from "@/core/db/schema";
 import type { MemoryEntry } from "@/core/types/app-state";
+import type { MemoryStore } from "@/modules/memory/types";
 
 const MEMORY_ID = "memory.md";
 const EMPTY_MEMORY_DOCUMENT = "# Memory\n";
 
 function getMemoryDirectory() {
-  return new Directory(Paths.document, "mobile-agent");
+  return new Directory(Paths.document, "ajiro-agent");
 }
 
 function getMemoryFile() {

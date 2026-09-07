@@ -98,15 +98,15 @@ jobs:
       - name: Download APK
         if: steps.version.outputs.changed == 'true'
         run: |
-          curl -fL "$APK_URL" -o mobile-agent-${{ env.VERSION }}.apk
+          curl -fL "$APK_URL" -o ajiro-agent-${{ env.VERSION }}.apk
 
       - name: Publish GitHub Release
         if: steps.version.outputs.changed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
-          name: Mobile Agent v${{ env.VERSION }}
-          files: mobile-agent-${{ env.VERSION }}.apk
+          name: Ajiro Agent v${{ env.VERSION }}
+          files: ajiro-agent-${{ env.VERSION }}.apk
           body_path: .release-notes.md
           prerelease: ${{ contains(env.VERSION, 'alpha') || contains(env.VERSION, 'beta') || contains(env.VERSION, 'rc') || contains(env.VERSION, 'pre') }}
 

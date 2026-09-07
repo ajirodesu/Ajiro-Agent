@@ -19,7 +19,7 @@ class ProcessTextActivity : Activity() {
       startActivity(
         Intent(
           Intent.ACTION_VIEW,
-          Uri.parse("mobile-agent:///settings/prompts?capture=1"),
+          Uri.parse("ajiro-agent:///settings/prompts?capture=1"),
         ).apply {
           setPackage(packageName)
           addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

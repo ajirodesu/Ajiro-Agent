@@ -1,7 +1,7 @@
 import Constants from "expo-constants";
 
 const RELEASES_API_URL =
-  "https://api.github.com/repos/TecnicalBot/mobile-agent/releases";
+  "https://api.github.com/repos/ajirodesu/ajiro-agent/releases";
 const RELEASE_CACHE_TTL_MS = 60 * 60 * 1000;
 
 export type AvailableRelease = {

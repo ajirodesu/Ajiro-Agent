@@ -1,3 +1,7 @@
+import { secureSecretStore } from "@/core/services/secrets";
+import type { McpServerConfig, ToolExecutionRecord } from "@/core/types/app-state";
+import { createMcpTransportOAuthProvider } from "@/modules/mcp/oauth";
+import { createRecord, summarizeValue } from "@/modules/tools/built-in/shared";
 import type {
   createMCPClient as CreateMCPClient,
   MCPClient,
@@ -5,10 +9,6 @@ import type {
 import type { ToolSet } from "ai";
 import { Platform } from "react-native";
 import "react-native-get-random-values";
-import { createMcpTransportOAuthProvider } from "@/modules/mcp/oauth";
-import { secureSecretStore } from "@/core/services/secrets";
-import { createRecord, summarizeValue } from "@/modules/tools/built-in/shared";
-import type { McpServerConfig, ToolExecutionRecord } from "@/core/types/app-state";
 
 let cryptoInstalled = false;
 
@@ -209,7 +209,7 @@ async function connectMcpClient(
     try {
       return await waitForMcpOperation(
         createRuntimeMCPClient({
-          clientName: "mobile-agent",
+          clientName: "ajiro-agent",
           maxRetries: 2,
           transport: {
             type: transportType,

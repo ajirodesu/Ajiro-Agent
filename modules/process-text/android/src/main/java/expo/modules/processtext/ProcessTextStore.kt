@@ -3,7 +3,7 @@ package expo.modules.processtext
 import android.content.Context
 
 internal object ProcessTextStore {
-  private const val PREFERENCES_NAME = "mobile_agent_process_text"
+  private const val PREFERENCES_NAME = "ajiro_agent_process_text"
   private const val PENDING_TEXT_KEY = "pending_text"
 
   fun save(context: Context, text: String) {

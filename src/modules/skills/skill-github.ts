@@ -5,7 +5,7 @@ const SKILL_MAX_BYTES = 200_000;
 
 const SKILL_FETCH_HEADERS = {
   Accept: "text/plain,text/markdown,*/*",
-  "User-Agent": "mobile-agent-skill-importer",
+  "User-Agent": "ajiro-agent-skill-importer",
 };
 
 export function githubBlobToRaw(url: string) {

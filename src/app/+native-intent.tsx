@@ -6,7 +6,7 @@ function stripQueryAndHash(path: string) {
 
 function isMcpOAuthCallback(path: string) {
   try {
-    const url = new URL(path, "mobile-agent://app.home");
+    const url = new URL(path, "ajiro-agent://app.home");
 
     return (
       (url.hostname === "mcp" && url.pathname === "/oauth/callback") ||

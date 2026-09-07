@@ -1,15 +1,15 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { Platform } from "react-native";
 
+import type { SecretStore } from "@/core/services/secrets";
+import type { ProviderConfig, ResolvedModel } from "@/core/types/app-state";
+import { getOllamaOpenAIBaseUrl } from "@/modules/providers/ollama-models";
 import {
   getValidOpenAiTokenInfo,
   refreshOpenAIToken,
   setOpenAiTokens,
 } from "@/modules/providers/openai-oauth";
-import { getOllamaOpenAIBaseUrl } from "@/modules/providers/ollama-models";
 import type { ModelRuntime } from "@/modules/runtime/drivers/types";
-import type { SecretStore } from "@/core/services/secrets";
-import type { ProviderConfig, ResolvedModel } from "@/core/types/app-state";
 
 const CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses";
 const OAUTH_DUMMY_API_KEY = "oauth";
@@ -106,7 +106,7 @@ async function fetchWithCodexOAuth(
     headers.delete("authorization");
     headers.set("authorization", `Bearer ${accessToken}`);
     headers.set("originator", "opencode");
-    headers.set("User-Agent", `mobile-agent/1.1.0 (${Platform.OS})`);
+    headers.set("User-Agent", `ajiro-agent/1.1.0 (${Platform.OS})`);
 
     if (accountId) {
       headers.set("ChatGPT-Account-Id", accountId);
@@ -180,8 +180,8 @@ export async function createOpenAIClient(input: {
     headers:
       input.provider.family === "openrouter"
         ? {
-            "HTTP-Referer": "https://mobile-agent.local",
-            "X-Title": "mobile-agent",
+            "HTTP-Referer": "https://ajiro-agent.local",
+            "X-Title": "ajiro-agent",
           }
         : undefined,
     name:

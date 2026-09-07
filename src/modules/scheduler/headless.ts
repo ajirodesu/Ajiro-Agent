@@ -2,11 +2,9 @@ import { openDatabaseSync } from "expo-sqlite";
 
 import { createRepositories, migrateAppDatabase } from "@/core/db/database";
 import type { Schedule } from "@/core/types/app-state";
-import { createWorkspaceFileService } from "@/core/services/workspace-file-service";
-import { createRunControllerRegistry } from "@/modules/runtime/run-manager";
 import { syncScheduleAlarms } from "./alarm-sync";
-import { runSchedulerTick } from "./engine";
 import { dispatchScheduledRunHeadless } from "./dispatch";
+import { runSchedulerTick } from "./engine";
 
 /**
  * Runs a full scheduler pass from a headless context (triggered by the native
@@ -14,7 +12,7 @@ import { dispatchScheduledRunHeadless } from "./dispatch";
  * directly, fires every due schedule, and re-arms the native alarms.
  */
 export async function runSchedulerHeadlessTick(): Promise<void> {
-  const db = openDatabaseSync("mobile-agent.db");
+  const db = openDatabaseSync("ajiro-agent.db");
 
   try {
     await migrateAppDatabase(db);

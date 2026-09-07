@@ -1,6 +1,6 @@
 import { Directory, File, Paths } from "expo-file-system";
 
-const DIAGNOSTICS_DIRECTORY_SEGMENTS = ["mobile-agent", "diagnostics"] as const;
+const DIAGNOSTICS_DIRECTORY_SEGMENTS = ["ajiro-agent", "diagnostics"] as const;
 const CHAT_RENDER_ERRORS_FILE_NAME = "chat-render-errors.log";
 
 export type ChatRenderErrorPayload = {

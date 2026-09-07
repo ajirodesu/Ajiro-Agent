@@ -17,10 +17,10 @@ import {
   Clock3,
   Copy,
   Download,
-  File as FileIcon,
   FileArchive,
   FileAudio,
   FileCode,
+  File as FileIcon,
   FileImage,
   FileSpreadsheet,
   FileText,
@@ -37,15 +37,6 @@ import {
   useMemo,
   useState,
 } from "react";
-import Animated, {
-  Easing,
-  cancelAnimation,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from "react-native-reanimated";
 import {
   ActivityIndicator,
   Alert,
@@ -63,6 +54,15 @@ import Markdown, {
   MarkdownIt,
   type RenderRules,
 } from "react-native-markdown-display";
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 import { refractor } from "refractor";
 import jsx from "refractor/jsx";
 import tsx from "refractor/tsx";
@@ -1559,7 +1559,7 @@ export const ChatMessage = memo(function ChatMessage({
 });
 
 function buildGeneratedImageFileName(image: GeneratedImageAttachment) {
-  return `mobile-agent-${image.id}.${getImageExtension(image.mimeType)}`;
+  return `ajiro-agent-${image.id}.${getImageExtension(image.mimeType)}`;
 }
 
 function buildAvailableGeneratedImageFile(
@@ -1567,7 +1567,7 @@ function buildAvailableGeneratedImageFile(
   image: GeneratedImageAttachment,
 ) {
   const extension = getImageExtension(image.mimeType);
-  const baseName = `mobile-agent-${image.id}`;
+  const baseName = `ajiro-agent-${image.id}`;
   const existingNames = new Set(directory.list().map((entry) => entry.name));
 
   if (!existingNames.has(`${baseName}.${extension}`)) {

@@ -1,16 +1,3 @@
-import { ANTHROPIC_PROVIDER } from "@/modules/providers/anthropic";
-import { GOOGLE_PROVIDER } from "@/modules/providers/google";
-import { OPENAI_COMPATIBLE_PROFILE_PROVIDERS } from "@/modules/providers/openai-compatible";
-import {
-  OPENAI_API_PROVIDER,
-  OPENAI_OAUTH_PROVIDER,
-} from "@/modules/providers/openai";
-import { OPENROUTER_PROVIDER } from "@/modules/providers/openrouter";
-import { OLLAMA_PROVIDER } from "@/modules/providers/ollama";
-import { ON_DEVICE_PROVIDER } from "@/modules/providers/on-device";
-import { XAI_PROVIDER } from "@/modules/providers/xai";
-import { resolveModelProfile } from "@/modules/providers/profile";
-import type { SupportedProviderDefinition } from "@/modules/providers/types";
 import type {
   CuratedModelDefinition,
   ModelPreset,
@@ -18,6 +5,19 @@ import type {
   ResolvedModel,
 } from "@/core/types/app-state";
 import { createModelRef } from "@/core/types/app-state";
+import { ANTHROPIC_PROVIDER } from "@/modules/providers/anthropic";
+import { GOOGLE_PROVIDER } from "@/modules/providers/google";
+import { OLLAMA_PROVIDER } from "@/modules/providers/ollama";
+import { ON_DEVICE_PROVIDER } from "@/modules/providers/on-device";
+import {
+  OPENAI_API_PROVIDER,
+  OPENAI_OAUTH_PROVIDER,
+} from "@/modules/providers/openai";
+import { OPENAI_COMPATIBLE_PROFILE_PROVIDERS } from "@/modules/providers/openai-compatible";
+import { OPENROUTER_PROVIDER } from "@/modules/providers/openrouter";
+import { resolveModelProfile } from "@/modules/providers/profile";
+import type { SupportedProviderDefinition } from "@/modules/providers/types";
+import { XAI_PROVIDER } from "@/modules/providers/xai";
 
 const SUPPORTED_PROVIDERS = [
   OPENAI_OAUTH_PROVIDER,
@@ -65,7 +65,7 @@ export function resolveConfiguredModel(input: {
 
   if (!suggestion) return null;
 
-  const storedProfile = input.preset?.options?.__mobileAgentModelProfile;
+  const storedProfile = input.preset?.options?.__ajiroAgentModelProfile;
   const storedProfileRecord =
     storedProfile &&
     typeof storedProfile === "object" &&

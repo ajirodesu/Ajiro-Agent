@@ -1,16 +1,16 @@
-import { DEFAULT_BUILT_IN_TOOL_SETTINGS } from "@/modules/config/built-in-tools";
 import type {
     AppSettings,
     AppStateSnapshot,
     ResolvedConfig,
 } from "@/core/types/app-state";
+import { DEFAULT_BUILT_IN_TOOL_SETTINGS } from "@/modules/config/built-in-tools";
 
 export const REQUEST_INACTIVITY_TIMEOUT_MS = 5 * 60_000;
 
 export const STREAMING_SNAPSHOT_INTERVAL_MS = 96;
 
 export const BASE_AGENT_SYSTEM_PROMPT = `
-You are Mobile Agent, an elite assistant built by Technical Bot.
+You are Ajiro Agent, an elite assistant built by Technical Bot.
 
 Keep your responses clear and concise.
 `;

@@ -17,11 +17,11 @@ import * as Crypto from "expo-crypto";
 import "react-native-get-random-values";
 
 import { secureSecretStore, type McpOAuthSession } from "@/core/services/secrets";
+import type { McpServerConfig } from "@/core/types/app-state";
 import {
   MCP_OAUTH_REDIRECT_URI,
   openMcpLoopbackAuthorization,
 } from "@/modules/mcp/loopback-oauth";
-import type { McpServerConfig } from "@/core/types/app-state";
 
 const REFRESH_SKEW_MS = 60_000;
 const MCP_PROTOCOL_VERSION = "2025-11-25";
@@ -789,7 +789,7 @@ function buildDiscoveryOAuthProvider(
     },
     get clientMetadata() {
       return {
-        client_name: "mobile-agent",
+        client_name: "ajiro-agent",
         grant_types: ["authorization_code", "refresh_token"],
         redirect_uris: [redirectUrl],
         response_types: ["code"],
@@ -895,7 +895,7 @@ async function connectDiscoveredMcpOAuth(server: McpServerConfig) {
     ) {
       if (new URL(server.url).hostname === "mcp.vercel.com") {
         throw new Error(
-          "Vercel MCP only accepts clients reviewed and approved by Vercel. Mobile Agent cannot complete OAuth until Vercel approves its client.",
+          "Vercel MCP only accepts clients reviewed and approved by Vercel. Ajiro Agent cannot complete OAuth until Vercel approves its client.",
         );
       }
 
@@ -1081,7 +1081,7 @@ export async function connectMcpOAuth(server: McpServerConfig) {
       /client|registration|approved|unauthorized/i.test(error.message)
     ) {
       throw new Error(
-        "Vercel MCP only accepts clients reviewed and approved by Vercel. Mobile Agent cannot complete OAuth until Vercel approves its client.",
+        "Vercel MCP only accepts clients reviewed and approved by Vercel. Ajiro Agent cannot complete OAuth until Vercel approves its client.",
       );
     }
 

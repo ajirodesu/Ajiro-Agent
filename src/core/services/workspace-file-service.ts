@@ -7,7 +7,7 @@ import { fetchWithTimeout } from "@/core/fetch-with-timeout";
 import type { WorkspaceRepository } from "@/core/db/database";
 import type { WorkspaceFile } from "@/core/types/app-state";
 
-const WORKSPACE_ROOT_SEGMENTS = ["mobile-agent", "workspace"] as const;
+const WORKSPACE_ROOT_SEGMENTS = ["ajiro-agent", "workspace"] as const;
 
 const TEXT_MIME_PREFIXES = ["text/"];
 const TEXT_MIME_TYPES = new Set([

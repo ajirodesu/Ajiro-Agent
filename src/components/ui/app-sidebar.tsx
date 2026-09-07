@@ -167,7 +167,7 @@ export function AppSidebar() {
       <Sidebar>
         <SidebarHeader className="min-h-8 flex-row items-center justify-between">
           <Text className="font-sans text-2xl font-semibold text-foreground dark:text-foreground-dark">
-            Mobile Agent
+            Ajiro Agent
           </Text>
           <SidebarClose asChild>
             <Button

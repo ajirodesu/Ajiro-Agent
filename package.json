@@ -1,5 +1,5 @@
 {
-  "name": "Mobile Agent",
+  "name": "Ajiro Agent",
   "description": "An AI agent that runs on your phone.",
   "main": "index.js",
   "version": "2.1.1",
@@ -85,7 +85,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/TecnicalBot/mobile-agent"
+    "url": "https://github.com/ajirodesu/ajiro-agent"
   },
   "license": "MIT",
   "scripts": {

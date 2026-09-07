@@ -41,7 +41,7 @@ let refreshPromise: Promise<OpenAiTokenInfo> | null = null;
 
 async function returnToAppAfterOAuth() {
   try {
-    await Linking.openURL(Linking.createURL("", { scheme: "mobile-agent" }));
+    await Linking.openURL(Linking.createURL("", { scheme: "ajiro-agent" }));
   } catch {}
 }
 

@@ -1,0 +1,87 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Install dependencies",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["install"],
+      "problemMatcher": [],
+      "windows": {
+        "command": "pnpm.cmd"
+      }
+    },
+    {
+      "label": "Start Expo",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["start"],
+      "isBackground": true,
+      "problemMatcher": [],
+      "windows": {
+        "command": "pnpm.cmd"
+      }
+    },
+    {
+      "label": "Run on Desktop (web)",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["web:desktop"],
+      "isBackground": true,
+      "problemMatcher": [],
+      "windows": {
+        "command": "pnpm.cmd"
+      }
+    },
+    {
+      "label": "Run Android",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["android"],
+      "problemMatcher": [],
+      "windows": {
+        "command": "pnpm.cmd"
+      }
+    },
+    {
+      "label": "Run iOS",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["ios"],
+      "problemMatcher": [],
+      "windows": {
+        "command": "pnpm.cmd"
+      }
+    },
+    {
+      "label": "Test (all)",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["test"],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test (watch)",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["test:watch"],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["lint"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Typecheck",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["exec", "tsc", "--noEmit"],
+      "problemMatcher": ["$tsc"]
+    }
+  ]
+}

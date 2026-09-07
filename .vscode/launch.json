@@ -1,0 +1,67 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Expo on Android",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["android"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Debug Expo on iOS",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["ios"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "windows": {
+        "runtimeExecutable": "pnpm.cmd"
+      }
+    },
+    {
+      "name": "Debug Expo (Metro bundler only)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["start"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "windows": {
+        "runtimeExecutable": "pnpm.cmd"
+      }
+    },
+    {
+      "name": "Run on Desktop (web test)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["web:desktop"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "windows": {
+        "runtimeExecutable": "pnpm.cmd"
+      },
+      "serverReadyAction": {
+        "pattern": "Desktop test server ready: (http://localhost:[0-9]+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      }
+    },
+    {
+      "name": "Debug Expo Web",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["web"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "windows": {
+        "runtimeExecutable": "pnpm.cmd"
+      }
+    }
+  ]
+}

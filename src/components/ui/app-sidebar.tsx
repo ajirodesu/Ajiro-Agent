@@ -1,8 +1,9 @@
 /**
- * Ajiro Agent sidebar — AMOLED-black redesign.
- * Structure adapted from the reference sidebar layout (top bar with app name +
- * search + new-chat affordances, primary nav group, Pinned/Recents history,
- * floating circular footer buttons) restyled to the Ajiro black palette.
+ * Ajiro Agent sidebar — slide-out navigation drawer.
+ * Near-black panel (#0D0D0D-#141414 equivalent via sidebar tokens), scrollable
+ * content with sticky bottom bar (Chat / avatar / voice), thin right-edge
+ * divider, five primary nav items, Pinned + Recents sections with an optional
+ * unread badge on any row.
  *
  * Author: AjiroDesu
  */
@@ -39,37 +40,43 @@ import { useAppState } from "@/hooks/use-app-state";
 import { useChat } from "@/hooks/use-chat";
 import { usePathname, useRouter } from "expo-router";
 import {
-  Brain,
-  CalendarClock,
+  AudioLines,
+  BookMarked,
+  Clock,
   EllipsisVertical,
+  FolderOpen,
+  Images,
   Library,
-  Pause,
+  AtSign,
+  MessageSquare,
   Pencil,
   Pin,
   PinOff,
   Search,
-  Server,
-  Settings,
   SquarePen,
   Trash2,
-  X,
 } from "lucide-react-native";
 import { useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 
 import type { Conversation } from "@/core/types/app-state";
-import { cn } from "@/core/utils";
 import { useTheme } from "@/hooks/use-theme";
 
-const NAV_ITEMS: {
-  label: string;
-  route: string;
-  icon: typeof Library;
-}[] = [
+const ACCENT_BLUE = "#3B82F6";
+
+/**
+ * Primary nav. "Images" and "Projects" map to real app destinations:
+ * Images -> Library filtered to image files, Projects -> coding settings
+ * (project folder/sandbox management). Library/Scheduled/Plugins map to their
+ * existing screens. If the product later grows dedicated Images/Projects
+ * screens, swap the routes here.
+ */
+const NAV_ITEMS: { label: string; route: string; icon: typeof Library }[] = [
+  { label: "Images", route: "/library?category=images", icon: Images },
   { label: "Library", route: "/library", icon: Library },
-  { label: "Scheduled", route: "/settings/jobs", icon: CalendarClock },
-  { label: "Skills", route: "/settings/skills", icon: Brain },
-  { label: "Plugins", route: "/settings/mcp", icon: Server },
+  { label: "Projects", route: "/settings/coding", icon: FolderOpen },
+  { label: "Scheduled", route: "/settings/jobs", icon: Clock },
+  { label: "Plugins", route: "/settings/mcp", icon: AtSign },
 ];
 
 export function AppSidebar() {
@@ -108,6 +115,13 @@ export function AppSidebar() {
 
   function renderConversation(conversation: (typeof conversations)[number]) {
     const active = conversation.id === currentConversation?.id;
+    const runStatus = runStatusByConversation[conversation.id];
+    const showBadge =
+      runStatus === "running" ||
+      runStatus === "queued" ||
+      runStatus === "resumable" ||
+      runStatus === "waiting_for_approval" ||
+      runStatus === "waiting_for_question";
 
     return (
       <SidebarMenuItem key={conversation.id}>
@@ -124,28 +138,24 @@ export function AppSidebar() {
             }}
           >
             <View className="min-w-0 flex-1 flex-row items-center gap-sp-2">
+              {conversation.pinnedAt ? (
+                <MessageSquare
+                  color={theme.text}
+                  size={22}
+                  strokeWidth={1.75}
+                />
+              ) : null}
               <Text
-                className={cn(
-                  "min-w-0 flex-1 font-sans text-sm font-medium",
-                  "text-foreground dark:text-foreground-dark",
-                )}
+                className="min-w-0 flex-1 font-sans text-lg text-foreground dark:text-foreground-dark"
                 numberOfLines={1}
               >
                 {conversation.title}
               </Text>
               <View className="shrink-0 items-center justify-center">
-                {runStatusByConversation[conversation.id] === "running" ||
-                runStatusByConversation[conversation.id] === "queued" ||
-                runStatusByConversation[conversation.id] === "resumable" ? (
-                  <ActivityIndicator
-                    color={theme.textSecondary}
-                    size="small"
-                  />
-                ) : runStatusByConversation[conversation.id] ===
-                    "waiting_for_approval" ||
-                  runStatusByConversation[conversation.id] ===
-                    "waiting_for_question" ? (
-                  <Pause color={theme.textSecondary} size={14} />
+                {showBadge ? (
+                  <View className="mr-1 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ACCENT_BLUE }} />
+                ) : runStatus === "retrying" ? (
+                  <ActivityIndicator color={theme.textSecondary} size="small" />
                 ) : (
                   <ChatOptions
                     conversationId={conversation.id}
@@ -201,41 +211,31 @@ export function AppSidebar() {
   return (
     <>
       <Sidebar>
-        <SidebarHeader className="min-h-8 flex-row items-center justify-between">
-          <Text className="font-sans text-2xl font-semibold text-foreground dark:text-foreground-dark">
-            Ajiro Agent
-          </Text>
-          <View className="flex-row items-center gap-sp-1">
-            <Button
-              accessibilityLabel="Search chats"
-              onPress={() => {
-                setSearchOpen((current) => !current);
-                setSearchQuery("");
-              }}
-              size="icon"
-              variant="ghost"
-            >
-              {searchOpen ? (
-                <X color={theme.text} size={20} />
-              ) : (
-                <Search color={theme.text} size={20} />
-              )}
-            </Button>
-            <SidebarClose asChild>
-              <Button
-                accessibilityLabel="New chat"
-                onPress={openNewChat}
-                size="icon"
-                variant="ghost"
-              >
-                <SquarePen color={theme.text} size={20} />
-              </Button>
-            </SidebarClose>
-          </View>
-        </SidebarHeader>
         <SidebarContent>
+          <SidebarHeader className="min-h-14 flex-row items-center justify-between pb-sp-2">
+            <Text className="font-sans text-[30px] font-bold text-foreground dark:text-foreground-dark">
+              Ajiro Agent
+            </Text>
+            <View className="flex-row items-center gap-sp-2">
+              <HeaderIconButton
+                accessibilityLabel="Search chats"
+                onPress={() => {
+                  setSearchOpen((current) => !current);
+                  setSearchQuery("");
+                }}
+              >
+                <Search color={theme.text} size={24} strokeWidth={1.75} />
+              </HeaderIconButton>
+              <SidebarClose asChild>
+                <HeaderIconButton accessibilityLabel="New chat" onPress={openNewChat}>
+                  <MessageSquarePlusIcon />
+                </HeaderIconButton>
+              </SidebarClose>
+            </View>
+          </SidebarHeader>
+
           {searchOpen ? (
-            <View className="pb-sp-1">
+            <View className="pb-sp-2">
               <Input
                 accessibilityLabel="Search chats"
                 autoFocus
@@ -246,11 +246,12 @@ export function AppSidebar() {
             </View>
           ) : null}
 
-          <SidebarGroup className="pb-sp-2">
+          <SidebarGroup className="pb-sp-1">
             <SidebarMenu className="gap-0">
               {NAV_ITEMS.map((item) => {
+                const basePath = item.route.split("?")[0];
                 const active =
-                  pathname === item.route || pathname.startsWith(`${item.route}/`);
+                  pathname === basePath || pathname.startsWith(`${basePath}/`);
 
                 return (
                   <SidebarMenuItem key={item.route}>
@@ -259,17 +260,13 @@ export function AppSidebar() {
                         fullBleed
                         isActive={active}
                         leftIcon={
-                          <item.icon
-                            color={theme.text}
-                            size={22}
-                            strokeWidth={2}
-                          />
+                          <item.icon color={theme.text} size={26} strokeWidth={1.75} />
                         }
                         onPress={() => {
                           router.push(item.route as never);
                         }}
                       >
-                        <Text className="font-sans text-base font-semibold text-foreground dark:text-foreground-dark">
+                        <Text className="font-sans text-xl font-medium text-foreground dark:text-foreground-dark">
                           {item.label}
                         </Text>
                       </SidebarMenuButton>
@@ -281,8 +278,8 @@ export function AppSidebar() {
           </SidebarGroup>
 
           {pinnedConversations.length > 0 ? (
-            <SidebarGroup>
-              <SidebarGroupLabel className="!px-0 text-sm font-semibold normal-case tracking-normal text-foreground dark:text-foreground-dark">
+            <SidebarGroup className="pt-sp-4">
+              <SidebarGroupLabel className="!px-0 text-base font-bold normal-case tracking-normal text-muted-foreground dark:text-muted-foreground-dark">
                 Pinned
               </SidebarGroupLabel>
               <SidebarMenu>
@@ -290,8 +287,9 @@ export function AppSidebar() {
               </SidebarMenu>
             </SidebarGroup>
           ) : null}
-          <SidebarGroup>
-            <SidebarGroupLabel className="!px-0 text-sm font-semibold normal-case tracking-normal text-foreground dark:text-foreground-dark">
+
+          <SidebarGroup className="pt-sp-4 pb-32">
+            <SidebarGroupLabel className="!px-0 text-base font-bold normal-case tracking-normal text-muted-foreground dark:text-muted-foreground-dark">
               Recents
             </SidebarGroupLabel>
             <SidebarMenu>
@@ -320,25 +318,75 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter>
-          {/* No divider — floating buttons sit flush against the content. */}
-          <View className="flex-row items-center justify-between">
-            <FloatingCircleButton
-              accessibilityLabel="New chat"
-              onPress={openNewChat}
-            >
-              <SquarePen color={theme.text} size={22} />
-            </FloatingCircleButton>
+
+        <SidebarFooter
+          className="z-10"
+          style={{
+            backgroundColor: "#0D0D0D",
+            paddingBottom: 12,
+          }}
+        >
+          <View className="flex-row items-center justify-between px-sp-1">
             <SidebarClose asChild>
-              <FloatingCircleButton
-                accessibilityLabel="Settings"
-                onPress={() => {
-                  router.push("/settings");
-                }}
+              <Pressable
+                accessibilityLabel="New chat"
+                accessibilityRole="button"
+                className="flex-row items-center gap-2 rounded-pill"
+                onPress={openNewChat}
+                style={({ pressed }) => ({
+                  backgroundColor: pressed ? "#2563EB" : ACCENT_BLUE,
+                  paddingHorizontal: 22,
+                  paddingVertical: 14,
+                })}
               >
-                <Settings color={theme.text} size={22} />
-              </FloatingCircleButton>
+                <SquarePen color="#FFFFFF" size={18} strokeWidth={2.25} />
+                <Text className="font-sans text-base font-bold text-white">
+                  Chat
+                </Text>
+              </Pressable>
             </SidebarClose>
+
+            <Pressable
+              accessibilityLabel="Account"
+              accessibilityRole="button"
+              className="h-16 w-16 items-center justify-center overflow-hidden rounded-full"
+              onPress={() => {
+                router.push("/settings");
+              }}
+              style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+            >
+              <View
+                className="h-16 w-16 items-center justify-center rounded-full"
+                style={{ backgroundColor: "#2A2A2A" }}
+              >
+                <BookMarked color="#FFFFFF" size={24} strokeWidth={1.75} />
+              </View>
+            </Pressable>
+
+            <Pressable
+              accessibilityLabel="Voice mode"
+              accessibilityRole="button"
+              className="h-16 w-16 items-center justify-center rounded-full"
+              onPress={() => {
+                Alert.alert(
+                  "Voice mode",
+                  "Voice conversations are coming soon.",
+                );
+              }}
+              style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+            >
+              <View
+                className="h-16 w-16 items-center justify-center rounded-full"
+                style={{ backgroundColor: "#2A2A2A" }}
+              >
+                <View
+                  className="h-12 w-12 items-center justify-center rounded-full"
+                  style={{ backgroundColor: "#172554" }}
+                >
+                  <AudioLines color={ACCENT_BLUE} size={24} strokeWidth={2} />
+                </View>
+              </View>
+            </Pressable>
           </View>
         </SidebarFooter>
       </Sidebar>
@@ -403,7 +451,7 @@ export function AppSidebar() {
   );
 }
 
-function FloatingCircleButton({
+function HeaderIconButton({
   accessibilityLabel,
   children,
   onPress,
@@ -416,21 +464,27 @@ function FloatingCircleButton({
     <Pressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
-      className="h-13 w-13 items-center justify-center rounded-full bg-sidebar-element dark:bg-sidebar-element-dark"
+      className="h-14 w-14 items-center justify-center rounded-full"
       onPress={onPress}
       style={({ pressed }) => ({
-        elevation: 6,
-        height: 52,
-        opacity: pressed ? 0.88 : 1,
-        shadowColor: "#000000",
-        shadowOffset: { height: 4, width: 0 },
-        shadowOpacity: 0.55,
-        shadowRadius: 8,
-        width: 52,
+        backgroundColor: "#2A2A2A",
+        opacity: pressed ? 0.85 : 1,
       })}
     >
       {children}
     </Pressable>
+  );
+}
+
+function MessageSquarePlusIcon() {
+  // Chat-bubble outline with a small pencil overlay, per the reference.
+  return (
+    <View className="items-center justify-center">
+      <MessageSquare color="#FFFFFF" size={24} strokeWidth={1.75} />
+      <View className="absolute -bottom-0.5 -right-1 h-3 w-3 items-center justify-center rounded-full" style={{ backgroundColor: "#2A2A2A" }}>
+        <Pencil color="#FFFFFF" size={8} strokeWidth={2.5} />
+      </View>
+    </View>
   );
 }
 

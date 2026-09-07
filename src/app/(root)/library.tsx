@@ -1,7 +1,10 @@
 import * as LegacyFileSystem from "expo-file-system/legacy";
 import { Image } from "expo-image";
 import * as IntentLauncher from "expo-intent-launcher";
-import { useRouter } from "expo-router";
+import {
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
 import * as Sharing from "expo-sharing";
 import {
   ChevronLeft,
@@ -47,7 +50,12 @@ export default function LibraryScreen() {
   const router = useRouter();
   const { deleteWorkspaceFile, refreshWorkspaceFiles, workspaceFiles } =
     useChat();
-  const [category, setCategory] = useState<LibraryCategory>("all");
+  const params = useLocalSearchParams<{ category?: string }>();
+  const initialCategory =
+    params.category === "images" || params.category === "docs"
+      ? params.category
+      : "all";
+  const [category, setCategory] = useState<LibraryCategory>(initialCategory);
   const [openingFileId, setOpeningFileId] = useState<string | null>(null);
   const [sharingFileId, setSharingFileId] = useState<string | null>(null);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);

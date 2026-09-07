@@ -262,6 +262,7 @@ export const Sidebar = forwardRef<ComponentRef<typeof View>, SidebarProps>(
             ref={ref}
             className={cn(
               "border-border bg-sidebar px-sp-4 dark:border-border-dark dark:bg-sidebar-dark",
+              side === "left" ? "border-r" : "border-l",
               className,
             )}
             style={[
@@ -364,11 +365,23 @@ export type SidebarFooterProps = ComponentPropsWithoutRef<typeof View> & {
   className?: string;
 };
 
+/**
+ * Sticky bottom bar: absolutely positioned so scrollable content flows
+ * underneath it (callers add matching bottom padding to the scroll content).
+ */
 export const SidebarFooter = forwardRef<
   ComponentRef<typeof View>,
   SidebarFooterProps
->(({ className, ...props }, ref) => (
-  <View ref={ref} className={cn("gap-sp-3 pt-sp-2", className)} {...props} />
+>(({ className, style, ...props }, ref) => (
+  <View
+    ref={ref}
+    className={cn(
+      "absolute inset-x-0 bottom-0 gap-sp-3 px-sp-4 pb-sp-2 pt-sp-2",
+      className,
+    )}
+    style={style}
+    {...props}
+  />
 ));
 
 SidebarFooter.displayName = "SidebarFooter";

@@ -23,17 +23,6 @@
       }
     },
     {
-      "label": "Run on Desktop (web)",
-      "type": "shell",
-      "command": "pnpm",
-      "args": ["web:desktop"],
-      "isBackground": true,
-      "problemMatcher": [],
-      "windows": {
-        "command": "pnpm.cmd"
-      }
-    },
-    {
       "label": "Run Android",
       "type": "shell",
       "command": "pnpm",

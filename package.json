@@ -94,7 +94,6 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "web:desktop": "node scripts/web-desktop.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "expo lint",

@@ -35,23 +35,6 @@
       }
     },
     {
-      "name": "Run on Desktop (web test)",
-      "type": "node",
-      "request": "launch",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["web:desktop"],
-      "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"],
-      "windows": {
-        "runtimeExecutable": "pnpm.cmd"
-      },
-      "serverReadyAction": {
-        "pattern": "Desktop test server ready: (http://localhost:[0-9]+)",
-        "uriFormat": "%s",
-        "action": "openExternally"
-      }
-    },
-    {
       "name": "Debug Expo Web",
       "type": "node",
       "request": "launch",

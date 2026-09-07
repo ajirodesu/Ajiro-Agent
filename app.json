@@ -43,20 +43,12 @@
       "package": "com.tecnicalbot.mobileagent"
     },
     "web": {
-      "output": "single",
+      "output": "server",
       "bundler": "metro",
       "favicon": "./assets/images/favicon.png"
     },
-       "plugins": [
-      [
-        "expo-router",
-        {
-          "headers": {
-            "Cross-Origin-Embedder-Policy": "credentialless",
-            "Cross-Origin-Opener-Policy": "same-origin"
-          }
-        }
-      ],
+    "plugins": [
+      "expo-router",
       [
         "expo-build-properties",
         {

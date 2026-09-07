@@ -10,7 +10,7 @@ export const REQUEST_INACTIVITY_TIMEOUT_MS = 5 * 60_000;
 export const STREAMING_SNAPSHOT_INTERVAL_MS = 96;
 
 export const BASE_AGENT_SYSTEM_PROMPT = `
-You are Ajiro Agent, an elite assistant built by Technical Bot.
+You are Ajiro Agent, an elite assistant built by AjiroDesu.
 
 Keep your responses clear and concise.
 `;

@@ -261,7 +261,7 @@ export const Sidebar = forwardRef<ComponentRef<typeof View>, SidebarProps>(
           <Animated.View
             ref={ref}
             className={cn(
-              "border-border bg-card px-sp-4 dark:border-border-dark dark:bg-card-dark",
+              "border-border bg-sidebar px-sp-4 dark:border-border-dark dark:bg-sidebar-dark",
               className,
             )}
             style={[
@@ -482,6 +482,8 @@ export type SidebarMenuButtonProps = Omit<
   asChild?: boolean;
   children?: ReactNode;
   className?: string;
+  /** Full-width, zero-radius row highlight (spans the panel's padding gutters). */
+  fullBleed?: boolean;
   isActive?: boolean;
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
@@ -497,6 +499,7 @@ export const SidebarMenuButton = forwardRef<
       children,
       className,
       disabled,
+      fullBleed = false,
       isActive = false,
       leftIcon,
       rightIcon,
@@ -504,12 +507,16 @@ export const SidebarMenuButton = forwardRef<
     },
     ref,
   ) => {
+    const layoutClassName = fullBleed
+      ? "-mx-sp-4 min-h-12 flex-row items-center gap-sp-3 rounded-none px-sp-4 py-sp-3"
+      : "min-h-12 flex-row items-center gap-sp-3 rounded-2xl px-sp-3 py-sp-3";
+
     if (asChild) {
       return slotPressableChild(children, {
         ...props,
         className: cn(
-          "min-h-12 flex-row items-center gap-sp-3 rounded-2xl px-sp-3 py-sp-3",
-          isActive ? "bg-foreground dark:bg-foreground-dark" : "bg-transparent",
+          layoutClassName,
+          isActive ? "bg-sidebar-element dark:bg-sidebar-element-dark" : "bg-transparent",
           disabled && "opacity-50",
           className,
         ),
@@ -521,8 +528,10 @@ export const SidebarMenuButton = forwardRef<
         ref={ref}
         accessibilityRole="button"
         className={cn(
-          "min-h-12 flex-row items-center gap-sp-3 rounded-2xl px-sp-3 py-sp-3",
-          isActive ? "bg-foreground dark:bg-foreground-dark" : "bg-transparent",
+          layoutClassName,
+          isActive
+            ? "bg-sidebar-element dark:bg-sidebar-element-dark"
+            : "bg-transparent",
           disabled && "opacity-50",
           className,
         )}
@@ -540,7 +549,7 @@ export const SidebarMenuButton = forwardRef<
                 className={cn(
                   "font-sans text-base font-medium",
                   isActive
-                    ? "text-background dark:text-background-dark"
+                    ? "text-foreground dark:text-foreground-dark"
                     : "text-foreground dark:text-foreground-dark",
                 )}
               >

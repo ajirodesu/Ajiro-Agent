@@ -64,6 +64,7 @@ export default function SettingsScreen() {
     updateNotificationSettings,
     updateThemeMode,
     providers,
+    codingSettings,
   } = useConfig();
   const { release, installing, installUpdate } = useUpdate();
   const [databaseUrlInput, setDatabaseUrlInput] = useState("");
@@ -171,6 +172,18 @@ export default function SettingsScreen() {
             router.push("/settings/memory" as never);
           }}
           value={memoryEnabled ? "Local" : "Disabled"}
+        />
+        <Separator />
+        <SettingsLinkRow
+          label="Coding"
+          onPress={() => {
+            router.push("/settings/coding" as never);
+          }}
+          value={
+            codingSettings.execEnabled || codingSettings.gitEnabled
+              ? "Enabled"
+              : "Off"
+          }
         />
         <Separator />
         <SettingsLinkRow

@@ -14,10 +14,10 @@ export type AvailableRelease = {
 };
 
 type GitHubRelease = {
-  assets?: Array<{
+  assets?: {
     browser_download_url?: string;
     name?: string;
-  }>;
+  }[];
   draft?: boolean;
   html_url?: string;
   name?: string;

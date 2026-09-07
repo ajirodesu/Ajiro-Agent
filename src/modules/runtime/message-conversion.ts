@@ -69,13 +69,13 @@ async function buildWorkspaceImageParts(files: WorkspaceFile[]) {
 
 function parseStoredContent(
   message: StoredMessage,
-): string | Array<Record<string, unknown>> {
+): string | Record<string, unknown>[] {
   if (message.content.startsWith("[")) {
     try {
       const parsed = JSON.parse(message.content);
 
       if (Array.isArray(parsed)) {
-        return parsed as Array<Record<string, unknown>>;
+        return parsed as Record<string, unknown>[];
       }
     } catch {}
   }
@@ -159,7 +159,7 @@ export async function convertStoredMessagesToModelMessages(input: {
       continue;
     }
 
-    const parts: Array<Record<string, unknown>> = [];
+    const parts: Record<string, unknown>[] = [];
 
     if (typeof parsedContent === "string" && parsedContent.trim()) {
       parts.push({

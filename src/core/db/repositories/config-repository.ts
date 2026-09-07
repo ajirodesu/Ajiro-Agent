@@ -4,6 +4,10 @@ import { desc, eq } from "drizzle-orm";
 import { normalizeBuiltInToolSettings } from "@/modules/config/built-in-tools";
 import { DEFAULT_PROVIDER_CONFIGS } from "@/modules/config/registry";
 import { appSettings, modelPresets, providerConfigs } from "@/core/db/schema";
+import {
+  normalizeCodingSettings,
+  serializeCodingSettings,
+} from "@/core/services/coding/coding-settings";
 import { buildSettings, nowIso } from "@/core/db/repositories/shared";
 import type {
   AppDatabase,
@@ -202,6 +206,18 @@ export function createConfigRepository(db: AppDatabase): ConfigRepository {
       await this.setSetting(
         "notification_settings_json",
         JSON.stringify(nextSettings),
+      );
+    },
+    async setCodingSettings(input) {
+      const settings = await this.getSettings();
+      const nextSettings = normalizeCodingSettings({
+        ...settings.codingSettings,
+        ...input,
+      });
+
+      await this.setSetting(
+        "coding_settings_v1",
+        serializeCodingSettings(nextSettings),
       );
     },
     async setDefaultModelPreset(modelPresetId) {

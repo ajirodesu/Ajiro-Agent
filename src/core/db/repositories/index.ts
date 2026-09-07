@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 
 import { createAgentRunRepository } from "@/core/db/repositories/agent-run-repository";
+import { createCheckpointRepository } from "@/core/db/repositories/checkpoint-repository";
 import { createConfigRepository } from "@/core/db/repositories/config-repository";
 import { createConversationRepository } from "@/core/db/repositories/conversation-repository";
 import { createFileMemoryStore } from "@/modules/memory/file-memory-store";
@@ -19,6 +20,7 @@ export function createRepositories(sqliteDb: SQLiteDatabase): Repositories {
 
   return {
     agentRunRepository: createAgentRunRepository(db),
+    checkpointRepository: createCheckpointRepository(db),
     configRepository: createConfigRepository(db),
     conversationRepository: createConversationRepository(db),
     memoryStore: createFileMemoryStore(db),

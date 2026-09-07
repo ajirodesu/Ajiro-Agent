@@ -3,6 +3,10 @@ import type { SQLiteDatabase } from "expo-sqlite";
 
 import { normalizeBuiltInToolSettings } from "@/modules/config/built-in-tools";
 import { appSettings, schema } from "@/core/db/schema";
+import {
+  parseCodingSettings,
+  type CodingSettings,
+} from "@/core/services/coding/coding-settings";
 import type {
   AppSettings,
   DatabaseMode,
@@ -46,6 +50,14 @@ export function buildSettings(rows: AppSettingRow[]): AppSettings {
     }
   })();
 
+  let codingSettings: CodingSettings | null = null;
+
+  try {
+    codingSettings = parseCodingSettings(settingsMap.get("coding_settings_v1"));
+  } catch {
+    codingSettings = null;
+  }
+
   return {
     activeConversationId: settingsMap.get("active_conversation_id") ?? null,
     activeModelRef:
@@ -86,6 +98,14 @@ export function buildSettings(rows: AppSettingRow[]): AppSettings {
     notificationSettings: parsedNotificationSettings ?? {
       approvalRequests: true,
       runFinished: true,
+    },
+    codingSettings: codingSettings ?? {
+      execEnabled: true,
+      gitEnabled: true,
+      verifyEnabled: false,
+      verifyCommands: ["typecheck-js"],
+      verifyMaxRetries: 3,
+      approvalMode: "ask",
     },
   };
 }

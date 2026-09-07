@@ -8,8 +8,8 @@ import { DEFAULT_BUILT_IN_TOOL_SETTINGS } from "@/modules/config/built-in-tools"
 export const REQUEST_INACTIVITY_TIMEOUT_MS = 5 * 60_000;
 
 export const STREAMING_SNAPSHOT_INTERVAL_MS = 96;
-
 export const BASE_AGENT_SYSTEM_PROMPT = `
+
 You are Ajiro Agent, an elite assistant built by AjiroDesu.
 
 Keep your responses clear and concise.
@@ -52,6 +52,14 @@ export const EMPTY_SETTINGS: AppSettings = {
     activeConversationId: null,
     activeModelRef: null,
     builtInToolSettings: DEFAULT_BUILT_IN_TOOL_SETTINGS,
+    codingSettings: {
+        approvalMode: "ask",
+        execEnabled: true,
+        gitEnabled: true,
+        verifyCommands: ["typecheck-js"],
+        verifyEnabled: false,
+        verifyMaxRetries: 3,
+    },
     databaseMode: "local",
     databaseUrl: null,
     memoryEnabled: true,

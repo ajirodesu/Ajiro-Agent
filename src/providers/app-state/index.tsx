@@ -329,6 +329,9 @@ type AppStateContextValue = {
     updateToolApprovalMode: (
         mode: AppSettings["toolApprovalMode"],
     ) => Promise<void>;
+    updateCodingSettings: (
+        input: Partial<AppSettings["codingSettings"]>,
+    ) => Promise<void>;
     updateMaxToolSteps: (maxToolSteps: number) => Promise<void>;
     updateThemeMode: (mode: AppSettings["themeMode"]) => Promise<void>;
     updateProvider: (
@@ -1910,6 +1913,13 @@ Your output must be:
         await hydrate();
     }
 
+    async function updateCodingSettings(
+        input: Partial<AppSettings["codingSettings"]>,
+    ) {
+        await repositoriesRef.current.configRepository.setCodingSettings(input);
+        await hydrate();
+    }
+
     function setOpenAIOAuthEmailInSnapshot(email: string | null) {
         setSnapshot((current) => {
             const providers = current.resolvedConfig.providers.map((provider) =>
@@ -3217,6 +3227,7 @@ Your output must be:
             value={{
                 resolveNotificationApproval,
                 updateNotificationSettings,
+                updateCodingSettings,
                 approvePendingToolApproval: () => {
                     if (pendingToolApproval) {
                         resolvePendingToolApproval(pendingToolApproval, "approve");
@@ -3435,6 +3446,8 @@ export function useConfig() {
         updateThemeMode: context.updateThemeMode,
         notificationSettings: context.settings.notificationSettings,
         updateNotificationSettings: context.updateNotificationSettings,
+        codingSettings: context.settings.codingSettings,
+        updateCodingSettings: context.updateCodingSettings,
         updateMaxToolSteps: context.updateMaxToolSteps,
         maxToolSteps: context.settings.maxToolSteps,
         updateProvider: context.updateProvider,

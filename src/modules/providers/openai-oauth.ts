@@ -31,7 +31,7 @@ type OpenAiClaims = {
   chatgpt_account_id?: string;
   email?: string;
   exp?: number;
-  organizations?: Array<{ id: string }>;
+  organizations?: { id: string }[];
   "https://api.openai.com/auth"?: {
     chatgpt_account_id?: string;
   };

@@ -3,6 +3,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 
 import type { schema } from "@/core/db/schema";
 import type { MemoryStore } from "@/modules/memory/types";
+import type { CheckpointRepository } from "@/core/db/repositories/checkpoint-repository";
 import type {
   AgentMode,
   AgentRun,
@@ -357,6 +358,9 @@ export interface ConfigRepository {
   setToolApprovalMode(mode: ToolApprovalMode): Promise<void>;
   setMaxToolSteps(maxToolSteps: number): Promise<void>;
   setNotificationSettings(input: Partial<NotificationSettings>): Promise<void>;
+  setCodingSettings(
+    input: Partial<AppSettings["codingSettings"]>,
+  ): Promise<void>;
   setDefaultModelPreset(modelPresetId: string): Promise<void>;
   updateProvider(
     providerId: string,
@@ -376,6 +380,7 @@ export interface ConfigRepository {
 
 export type Repositories = {
   agentRunRepository: AgentRunRepository;
+  checkpointRepository: CheckpointRepository;
   configRepository: ConfigRepository;
   conversationRepository: ConversationRepository;
   memoryStore: MemoryStore;

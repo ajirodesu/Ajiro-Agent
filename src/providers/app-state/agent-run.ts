@@ -48,6 +48,12 @@ import {
   buildTransferSystemPrompt,
   createTransferTools,
 } from "@/modules/tools/built-in/external-folder/transfer";
+import { createCodingTools } from "@/modules/tools/coding/coding-tools";
+import { buildCodingSystemPrompt } from "@/modules/tools/coding/coding-prompt";
+import {
+  buildRepoMap,
+  formatRepoMap,
+} from "@/modules/context/repo-map";
 import {
   startBackgroundAgent,
   stopBackgroundAgent,
@@ -109,6 +115,9 @@ const MUTATING_BUILT_IN_TOOL_NAMES = new Set([
   "moveEntry",
   "renameEntry",
   "write",
+  "git-add",
+  "git-commit",
+  "git-branch",
 ]);
 
 const WORKSPACE_AUTO_APPROVED_BUILT_IN_TOOL_NAMES = new Set([
@@ -529,6 +538,7 @@ export async function executeClaimedAgentRun(
   const todoList = [
     ...(assistantMessage.metadata?.todoList ?? []),
   ] as import("@/core/types/app-state").TodoListItem[];
+  let pendingEditCount = 0;
   const appliedSkillIds =
     assistantMessage.metadata?.appliedSkillIds ??
     userMessage?.metadata?.appliedSkillIds ??
@@ -833,6 +843,16 @@ export async function executeClaimedAgentRun(
 
   const handleToolExecutionRecord = (record: ToolExecutionRecord) => {
     toolExecutions.push(record);
+
+    if (
+      run.fileContextSource === "external-folder" &&
+      snapshotRef.current.settings.codingSettings.verifyEnabled &&
+      ["createFile", "edit", "write"].includes(record.toolName) &&
+      record.status === "completed"
+    ) {
+      pendingEditCount += 1;
+    }
+
     pushTimelineEvent(
       createExecutionTimelineEvent({
         detail:
@@ -898,6 +918,16 @@ export async function executeClaimedAgentRun(
                 ["write", toolSettings.folderWrite],
               ]),
             );
+
+            const codingSettings = snapshotRef.current.settings.codingSettings;
+            const codingTools = createCodingTools({
+              execEnabled: codingSettings.execEnabled,
+              gitEnabled: codingSettings.gitEnabled,
+              onRecord: handleToolExecutionRecord,
+              session: externalFolderSession as ExternalFolderSession,
+            });
+
+            Object.assign(tools, codingTools.tools);
 
             Object.assign(
               tools,
@@ -1152,6 +1182,31 @@ export async function executeClaimedAgentRun(
         "importFolderFileToWorkspace" in builtInRuntimeTools)
         ? buildTransferSystemPrompt(activeFolderSession as ExternalFolderSession)
         : undefined;
+    const codingSettings = snapshotRef.current.settings.codingSettings;
+    const codingRuntimeSystem =
+      run.fileContextSource === "external-folder" &&
+      (codingSettings.execEnabled || codingSettings.gitEnabled)
+        ? buildCodingSystemPrompt({
+            execEnabled: codingSettings.execEnabled,
+            gitEnabled: codingSettings.gitEnabled,
+            session: externalFolderSession as ExternalFolderSession,
+            verifyEnabled: codingSettings.verifyEnabled,
+          })
+        : undefined;
+    let repoMapSystem: string | null = null;
+
+    if (
+      run.fileContextSource === "external-folder" &&
+      codingSettings.execEnabled
+    ) {
+      try {
+        repoMapSystem = formatRepoMap(
+          await buildRepoMap(externalFolderSession as ExternalFolderSession),
+        );
+      } catch {
+        repoMapSystem = null;
+      }
+    }
     const selectedFilesContext = useInlineFileContext
       ? await buildSelectedFilesInlineContext({
           repository: repositories.workspaceRepository,
@@ -1201,6 +1256,8 @@ export async function executeClaimedAgentRun(
         builtInRuntimeSystem,
         workspaceRuntimeSystem,
         transferRuntimeSystem,
+        codingRuntimeSystem,
+        repoMapSystem,
         mcpRuntime?.systemPrompt,
         memoryRuntimeSystem,
         skillsRuntimeSystem,
@@ -1568,6 +1625,52 @@ export async function executeClaimedAgentRun(
       lastError: null,
       status: "completed",
     });
+
+    // Verify loop (coding harness): after edits on a coding session, run the
+    // configured allow-listed checks and surface failures as timeline events.
+    if (
+      run.fileContextSource === "external-folder" &&
+      codingSettings.verifyEnabled &&
+      codingSettings.verifyCommands.length > 0 &&
+      pendingEditCount > 0 &&
+      !isPlanMode
+    ) {
+      try {
+        const { runVerifyLoop } = await import("@/modules/runtime/verify-loop");
+        const verifyResult = await runVerifyLoop({
+          commands: codingSettings.verifyCommands,
+          maxRetries: codingSettings.verifyMaxRetries,
+          maxTotalAttempts: 1,
+          session: externalFolderSession as ExternalFolderSession,
+        });
+
+        pushTimelineEvent(
+          createExecutionTimelineEvent({
+            detail:
+              verifyResult.followUpPrompt?.slice(0, 600) ??
+              "All checks passed after edits.",
+            kind: "tool",
+            status: verifyResult.passed ? "completed" : "failed",
+            title: verifyResult.passed
+              ? "Verify loop passed"
+              : "Verify loop found issues",
+          }),
+        );
+        refreshAssistantState?.();
+      } catch (verifyError) {
+        pushTimelineEvent(
+          createExecutionTimelineEvent({
+            detail:
+              verifyError instanceof Error
+                ? verifyError.message
+                : String(verifyError),
+            kind: "tool",
+            status: "failed",
+            title: "Verify loop failed to run",
+          }),
+        );
+      }
+    }
 
     const [memory, workspaceFiles] = await Promise.all([
       repositories.memoryStore.read(),

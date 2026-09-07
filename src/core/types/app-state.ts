@@ -406,6 +406,7 @@ export type AppSettings = {
   activeConversationId: string | null;
   activeModelRef: ModelRef | null;
   builtInToolSettings: BuiltInToolSettings;
+  codingSettings: import("@/core/services/coding/coding-settings").CodingSettings;
   databaseMode: DatabaseMode;
   databaseUrl: string | null;
   memoryEnabled: boolean;

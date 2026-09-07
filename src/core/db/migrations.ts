@@ -2,7 +2,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 
 import { serializeSkillToMarkdown } from "@/modules/skills/skill-markdown";
 
-const DATABASE_VERSION = 22;
+const DATABASE_VERSION = 23;
 
 const CORE_SCHEMA_REPAIR_SQL = `
   PRAGMA journal_mode = WAL;
@@ -772,6 +772,26 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
     }
 
     currentVersion = 22;
+  }
+
+  if (currentVersion === 22) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS coding_checkpoints (
+        id TEXT PRIMARY KEY NOT NULL,
+        conversation_id TEXT NOT NULL,
+        run_id TEXT,
+        project_uri TEXT NOT NULL,
+        label TEXT NOT NULL,
+        snapshot_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_coding_checkpoints_conversation_created_at
+      ON coding_checkpoints(conversation_id, created_at);
+    `);
+
+    currentVersion = 23;
   }
 
   await db.execAsync(`PRAGMA user_version = ${currentVersion}`);

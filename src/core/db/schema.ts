@@ -317,9 +317,34 @@ export const appSettings = sqliteTable("app_settings", {
   value: text("value"),
 });
 
+export const codingCheckpoints = sqliteTable(
+  "coding_checkpoints",
+  {
+    id: text("id").primaryKey().notNull(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversations.id),
+    runId: text("run_id"),
+    projectUri: text("project_uri").notNull(),
+    label: text("label").notNull(),
+    /** JSON array of { path, previousContent | null } snapshots. */
+    snapshot: text("snapshot_json", { mode: "json" })
+      .$type<{ path: string; previousContent: string | null }[]>()
+      .notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("idx_coding_checkpoints_conversation_created_at").on(
+      table.conversationId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const schema = {
   agentRuns,
   appSettings,
+  codingCheckpoints,
   conversations,
   memories,
   messages,

@@ -5,23 +5,30 @@ import { TextInputWrapper, type PasteEventPayload } from "expo-paste-input";
 import { useRouter } from "expo-router";
 import {
   ArrowDown,
+  ArrowUp,
   Bookmark,
   Brain,
   Check,
-  ChevronDown,
   ChevronLeft,
   ClipboardList,
   Edit,
   FolderOpen,
   Info,
+  LayoutGrid,
   Paperclip,
-  Send,
+  Plus,
   Server,
   StopCircle,
   Trash2,
   Upload,
   X,
 } from "lucide-react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import {
   memo,
   useCallback,
@@ -100,10 +107,13 @@ import { useChatInfo } from "@/hooks/use-chat-info";
 import { useConfig } from "@/hooks/use-config";
 import { useTheme } from "@/hooks/use-theme";
 import { detectFolderIntent } from "@/modules/chat/folder-intent";
+import {
+  getSuggestions,
+  insertSuggestion,
+} from "@/modules/chat/suggestions";
 import { partitionSelectedFiles } from "@/modules/runtime/message-conversion";
 
-const REASONING_EFFORT_OPTIONS: {
-  value: ReasoningEffort;
+const REASONING_EFFORT_OPTIONS: {  value: ReasoningEffort;
   label: string;
   description: string;
 }[] = [
@@ -218,6 +228,54 @@ function logComposerDebug(label: string, data: Record<string, unknown>) {
     return;
   }
   console.log(`[Composer:${label}]`, JSON.stringify(data));
+}
+
+/** Pill input geometry: line-count-driven sizing, 10-line max, then scroll. */
+const COMPOSER_LINE_HEIGHT = 20;
+const COMPOSER_VERTICAL_PADDING = 16;
+const COMPOSER_INPUT_MIN_HEIGHT = 52;
+const COMPOSER_INPUT_MAX_HEIGHT =
+  COMPOSER_LINE_HEIGHT * 10 + COMPOSER_VERTICAL_PADDING;
+
+function useSyncedComposerSelection() {
+  const [selection, setSelection] = useState({ end: 0, start: 0 });
+  const [pendingCursor, setPendingCursor] = useState<number | null>(null);
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+
+  const onSelectionChange = useCallback(
+    (event: { nativeEvent: { selection: { end: number; start: number } } }) => {
+      const next = event.nativeEvent.selection;
+      // Avoid re-renders when nothing actually moved.
+      setSelection((current) =>
+        current.start === next.start && current.end === next.end
+          ? current
+          : { end: next.end, start: next.start },
+      );
+
+      // Once the native selection lands on the requested cursor, stop
+      // controlling it so normal typing works untouched.
+      setPendingCursor((requested) =>
+        requested === null || requested === next.start ? null : requested,
+      );
+    },
+    [],
+  );
+
+  const requestCursor = useCallback((cursor: number) => {
+    setPendingCursor(cursor);
+  }, []);
+
+  return {
+    onSelectionChange,
+    requestCursor,
+    selection,
+    selectionRef,
+    selectionProp:
+      pendingCursor === null
+        ? undefined
+        : { end: pendingCursor, start: pendingCursor },
+  };
 }
 
 export default function Screen() {
@@ -454,7 +512,7 @@ export default function Screen() {
                 >
                   <ActivityIndicator color={theme.textSecondary} size="small" />
                   <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
-                    Loading chat…
+                    Loading chatâ€¦
                   </Text>
                 </View>
               ) : (
@@ -529,7 +587,7 @@ export default function Screen() {
               canSend={ready && currentModel !== null}
               currentModelLabel={
                 currentModel
-                  ? `${currentModel.providerLabel} · ${currentModel.label}`
+                  ? `${currentModel.providerLabel} Â· ${currentModel.label}`
                   : null
               }
               activeModels={chatInputModelOptions}
@@ -874,11 +932,11 @@ const ChatInput = memo(function ChatInput({
   agentMode,
   setAgentMode,
 }: {
-  activeModels: Array<{
+  activeModels: {
     label: string;
     providerLabel: string;
     ref: ModelRef;
-  }>;
+  }[];
   canSend: boolean;
   clearConversationFolder: () => Promise<void>;
   clearWorkspaceFiles: () => Promise<void>;
@@ -931,12 +989,15 @@ const ChatInput = memo(function ChatInput({
 }) {
   const theme = useTheme();
   const { height: screenHeight } = useWindowDimensions();
+  const composerSelection = useSyncedComposerSelection();
   const { scrollToEnd } = useMessageScrollerActions();
   const sendingRef = useRef(false);
   const composerRef = useRef<TextInput>(null);
   const [prompt, setPrompt] = useState("");
   const [composerContentHeight, setComposerContentHeight] = useState(0);
   const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
+  const [plusMenuDrawerOpen, setPlusMenuDrawerOpen] = useState(false);
+  const [quickPanelOpen, setQuickPanelOpen] = useState(false);
   const [modelsDrawerOpen, setModelsDrawerOpen] = useState(false);
   const [reasoningDrawerOpen, setReasoningDrawerOpen] = useState(false);
   const [agentModeDrawerOpen, setAgentModeDrawerOpen] = useState(false);
@@ -982,12 +1043,31 @@ const ChatInput = memo(function ChatInput({
     setPrompt("");
   }, [editDraft, editNonce]);
 
-  const maxComposerInputHeight = Math.min(320, screenHeight * 0.35);
-  const composerInputHeight = Math.min(
-    maxComposerInputHeight,
-    Math.max(76, composerContentHeight),
+  // Auto-resize: grows one line at a time up to COMPOSER_MAX_LINES, then locks
+  // at max height and the field becomes internally scrollable. Shrinks back
+  // line by line as text is removed. Height changes animate via reanimated.
+  const composerTargetHeight = Math.min(
+    COMPOSER_INPUT_MAX_HEIGHT,
+    Math.max(COMPOSER_INPUT_MIN_HEIGHT, composerContentHeight),
   );
-  const composerScrollEnabled = composerContentHeight > maxComposerInputHeight;
+  const composerScrollEnabled = composerContentHeight > COMPOSER_INPUT_MAX_HEIGHT;
+  const composerAnimatedHeight = useSharedValue(COMPOSER_INPUT_MIN_HEIGHT);
+
+  useEffect(() => {
+    composerAnimatedHeight.value = withTiming(composerTargetHeight, {
+      duration: 130,
+      easing: Easing.inOut(Easing.quad),
+    });
+  }, [composerAnimatedHeight, composerTargetHeight]);
+
+  const composerAnimatedStyle = useAnimatedStyle(() => ({
+    height: composerAnimatedHeight.value,
+  }));
+
+  const composerSuggestions = useMemo(
+    () => getSuggestions(prompt, composerSelection.selection.start),
+    [composerSelection.selection.start, prompt],
+  );
 
   const composerTrigger = useMemo(() => getComposerTrigger(prompt), [prompt]);
   const modelGroups = useMemo(() => {
@@ -1666,7 +1746,7 @@ const ChatInput = memo(function ChatInput({
                   <AttachmentDescription>
                     {file.mimeType ?? "Unknown type"}
                     {typeof file.size === "number"
-                      ? ` · ${file.size} bytes`
+                      ? ` Â· ${file.size} bytes`
                       : ""}
                   </AttachmentDescription>
                 </AttachmentContent>
@@ -1711,66 +1791,56 @@ const ChatInput = memo(function ChatInput({
           </View>
         ) : null}
 
-        <View className="relative rounded-3xl border border-border bg-input dark:border-border-dark dark:bg-input-dark">
-          <TextInputWrapper
-            style={{ height: composerInputHeight, width: "100%" }}
-            onPaste={(payload) => {
-              handlePaste(payload).catch(console.error);
-            }}
-          >
-            <Textarea
-              ref={composerRef}
-              className="min-h-0 rounded-full border-0 bg-transparent px-0 py-0 dark:bg-transparent"
-              onChangeText={setPrompt}
-              onContentSizeChange={(event) => {
-                setComposerContentHeight(event.nativeEvent.contentSize.height);
-              }}
-              placeholder="Type a message..."
-              returnKeyType="default"
-              scrollEnabled={composerScrollEnabled}
-              submitBehavior="newline"
-              style={{ height: composerInputHeight }}
-              value={prompt}
-            />
-          </TextInputWrapper>
-
-          <View className="h-[52px] flex-row items-center gap-2 px-2 pb-2">
+        <View className="rounded-pill border border-border bg-input dark:border-border-dark dark:bg-input-dark">
+          <View className="flex-row items-end px-2 py-1.5">
             <Pressable
+              accessibilityLabel="Attachments and tools"
               accessibilityRole="button"
-              className="flex-row items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 dark:border-border-dark dark:bg-card-dark"
+              className="h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary dark:bg-secondary-dark"
+              hitSlop={4}
               onPress={() => {
-                setApprovalModeDrawerOpen(true);
+                setPlusMenuDrawerOpen(true);
               }}
               style={({ pressed }) => (pressed ? { opacity: 0.82 } : null)}
             >
-              <Text className="font-sans text-xs font-medium text-foreground dark:text-foreground-dark">
-                {toolApprovalMode === "ask" ? "Ask" : "Allow"}
-              </Text>
-              <ChevronDown color={theme.textSecondary} size={14} />
+              <Plus color={theme.text} size={20} />
             </Pressable>
 
-            <Pressable
-              accessibilityLabel="Select agent mode"
-              accessibilityRole="button"
-              className="flex-row items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 dark:border-border-dark dark:bg-card-dark"
-              onPress={() => {
-                setAgentModeDrawerOpen(true);
+            <TextInputWrapper
+              className="min-w-0 flex-1 px-2"
+              style={{ width: "100%" }}
+              onPaste={(payload) => {
+                handlePaste(payload).catch(console.error);
               }}
-              style={({ pressed }) => (pressed ? { opacity: 0.82 } : null)}
             >
-              <ClipboardList color={theme.textSecondary} size={14} />
-              <Text className="font-sans text-xs font-medium text-foreground dark:text-foreground-dark">
-                {getAgentModeLabel(agentMode)}
-              </Text>
-              <ChevronDown color={theme.textSecondary} size={14} />
-            </Pressable>
+              <Animated.View style={[composerAnimatedStyle]}>
+                <Textarea
+                  ref={composerRef}
+                  className="h-full w-full min-h-0 rounded-pill border-0 bg-transparent px-0 py-0 leading-6 text-base dark:bg-transparent"
+                  cursorColor="#0A84FF"
+                  onChangeText={setPrompt}
+                  onContentSizeChange={(event) => {
+                    setComposerContentHeight(
+                      event.nativeEvent.contentSize.height,
+                    );
+                  }}
+                  onSelectionChange={composerSelection.onSelectionChange}
+                  placeholder="Ask Ajiro Agent"
+                  returnKeyType="default"
+                  scrollEnabled={composerScrollEnabled}
+                  selection={composerSelection.selectionProp}
+                  selectionColor="#0A84FF"
+                  submitBehavior="newline"
+                  value={prompt}
+                />
+              </Animated.View>
+            </TextInputWrapper>
 
-            <View className="flex-1" />
             <Pressable
               accessibilityLabel={loading ? "Stop generating" : "Send message"}
               accessibilityRole="button"
               accessibilityState={{ disabled: sendDisabled }}
-              className="h-12 w-12 items-center justify-center rounded-full bg-foreground dark:bg-foreground-dark"
+              className="h-9 w-9 shrink-0 items-center justify-center self-center rounded-full bg-[#0A84FF]"
               disabled={sendDisabled}
               hitSlop={8}
               onPress={() => {
@@ -1790,25 +1860,219 @@ const ChatInput = memo(function ChatInput({
                 handleGenerate().catch(console.error);
               }}
               style={({ pressed }) => ({
-                opacity: sendDisabled ? 0.5 : pressed ? 0.85 : 1,
+                elevation: 5,
+                opacity: sendDisabled ? 0.4 : pressed ? 0.85 : 1,
+                shadowColor: "#000000",
+                shadowOffset: { height: 3, width: 0 },
+                shadowOpacity: 0.45,
+                shadowRadius: 6,
               })}
             >
               {loading ? (
-                <StopCircle color={theme.background} size={18} />
+                <StopCircle color="#FFFFFF" size={16} />
               ) : (
-                <Send color={theme.background} size={18} />
+                <ArrowUp color="#FFFFFF" size={18} strokeWidth={2.5} />
               )}
             </Pressable>
           </View>
         </View>
 
-        <Text className="px-sp-1 font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
-          Use @ for files and folders, / for commands.
-          {supportsImageGeneration
-            ? " This model can also generate images."
-            : ""}
-        </Text>
+        {prompt.trim().length > 0 ? (
+          <View className="flex-row items-center">
+            <Pressable
+              accessibilityLabel="Toggle quick tools panel"
+              accessibilityRole="button"
+              className={cn(
+                "h-9 w-9 items-center justify-center rounded-full",
+                quickPanelOpen && "bg-secondary dark:bg-secondary-dark",
+              )}
+              hitSlop={4}
+              onPress={() => {
+                setQuickPanelOpen((current) => !current);
+              }}
+              style={({ pressed }) => (pressed ? { opacity: 0.82 } : null)}
+            >
+              <LayoutGrid color={theme.textSecondary} size={18} />
+            </Pressable>
+            <View className="mx-1 h-4 w-px bg-border dark:bg-border-dark" />
+            {composerSuggestions.map((word, index) => (
+              <View className="flex-row items-center" key={`${word}-${index}`}>
+                {index > 0 ? (
+                  <View className="mx-1 h-4 w-px bg-border dark:bg-border-dark" />
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  className="px-3 py-1.5"
+                  onPress={() => {
+                    const { text, cursor } = insertSuggestion(
+                      prompt,
+                      composerSelection.selection.start,
+                      composerSelection.selection.end,
+                      word,
+                    );
+                    setPrompt(text);
+                    composerSelection.requestCursor(cursor);
+                  }}
+                  style={({ pressed }) => (pressed ? { opacity: 0.7 } : null)}
+                >
+                  <Text className="font-sans text-sm text-muted-foreground dark:text-[#D0D0D4]">
+                    {word}
+                  </Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {quickPanelOpen ? (
+          <View className="flex-row flex-wrap gap-2 rounded-card bg-card p-2 dark:bg-card-dark">
+            {[
+              {
+                label: "Files",
+                onPress: () => {
+                  setQuickPanelOpen(false);
+                  setFilesDrawerOpen(true);
+                },
+              },
+              {
+                label: "Model",
+                onPress: () => {
+                  setQuickPanelOpen(false);
+                  setModelsDrawerOpen(true);
+                },
+              },
+              {
+                label: "Skills",
+                onPress: () => {
+                  setQuickPanelOpen(false);
+                  setSkillsDrawerOpen(true);
+                },
+              },
+              {
+                label: "MCP",
+                onPress: () => {
+                  setQuickPanelOpen(false);
+                  setMcpServersDrawerOpen(true);
+                },
+              },
+            ].map((action) => (
+              <Pressable
+                accessibilityRole="button"
+                className="rounded-pill bg-secondary px-4 py-2 dark:bg-secondary-dark"
+                key={action.label}
+                onPress={action.onPress}
+                style={({ pressed }) => (pressed ? { opacity: 0.82 } : null)}
+              >
+                <Text className="font-sans text-sm font-medium text-foreground dark:text-foreground-dark">
+                  {action.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {prompt.trim().length === 0 ? (
+          <Text className="px-sp-1 font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
+            Use @ for files and folders, / for commands.
+            {supportsImageGeneration
+              ? " This model can also generate images."
+              : ""}
+          </Text>
+        ) : null}
       </View>
+
+      <Drawer
+        onOpenChange={setPlusMenuDrawerOpen}
+        open={plusMenuDrawerOpen}
+      >
+        <DrawerContent showCloseButton showHandle>
+          <DrawerHeader>
+            <DrawerTitle>Add context and tools</DrawerTitle>
+            <DrawerDescription>
+              Attachments, files, folders, models, and modes for this chat.
+            </DrawerDescription>
+          </DrawerHeader>
+          <DrawerBody contentContainerClassName="gap-sp-2 pb-sp-4">
+            <ComposerMenuRow
+              icon={<Paperclip color={theme.text} size={16} />}
+              label="Attach file"
+              onPress={() => {
+                setPlusMenuDrawerOpen(false);
+                setFilesDrawerOpen(true);
+              }}
+              subtitle="Choose an uploaded file or upload a new one"
+            />
+            {Platform.OS === "android" ? (
+              <ComposerMenuRow
+                icon={<FolderOpen color={theme.text} size={16} />}
+                disabled={!supportsTools}
+                label={activeFolderLabel ? "Switch project folder" : "Open project folder"}
+                onPress={() => {
+                  setPlusMenuDrawerOpen(false);
+                  setBusyAction("folder");
+                  pickConversationFolder()
+                    .then((session) => {
+                      setFolderNotice(`Using ${session.displayName} for this chat.`);
+                    })
+                    .catch((error) => {
+                      if (!isFolderPickerCancellation(error)) {
+                        setFolderNotice(
+                          error instanceof Error
+                            ? error.message
+                            : "Could not select folder.",
+                        );
+                      }
+                    })
+                    .finally(() => {
+                      setBusyAction(null);
+                    });
+                }}
+                subtitle={
+                  supportsTools
+                    ? (activeFolderLabel ?? "Use an external folder for this chat")
+                    : "Requires a tool-capable model"
+                }
+              />
+            ) : null}
+            <ComposerMenuRow
+              icon={<ClipboardList color={theme.text} size={16} />}
+              label={`Agent mode Â· ${getAgentModeLabel(agentMode)}`}
+              onPress={() => {
+                setPlusMenuDrawerOpen(false);
+                setAgentModeDrawerOpen(true);
+              }}
+              subtitle="Build (full access) or Plan (read-only)"
+            />
+            <ComposerMenuRow
+              icon={<Check color={theme.text} size={16} />}
+              label="Select model"
+              onPress={() => {
+                setPlusMenuDrawerOpen(false);
+                setModelsDrawerOpen(true);
+              }}
+              subtitle={currentModelLabel ?? "Choose the current chat model"}
+            />
+            <ComposerMenuRow
+              icon={<Server color={theme.text} size={16} />}
+              label="MCP servers"
+              onPress={() => {
+                setPlusMenuDrawerOpen(false);
+                setMcpServersDrawerOpen(true);
+              }}
+              subtitle={`${activeMcpServerIds.size} active in this chat`}
+            />
+            <ComposerMenuRow
+              icon={<Brain color={theme.text} size={16} />}
+              label={`Tool approval Â· ${toolApprovalMode === "ask" ? "Ask" : "Allow"}`}
+              onPress={() => {
+                setPlusMenuDrawerOpen(false);
+                setApprovalModeDrawerOpen(true);
+              }}
+              subtitle="Ask before each tool action, or auto-approve"
+            />
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
 
       <Drawer onOpenChange={setFilesDrawerOpen} open={filesDrawerOpen}>
         <DrawerContent showCloseButton showHandle size={filesDrawerSize}>
@@ -2075,7 +2339,7 @@ const ChatInput = memo(function ChatInput({
                     subtitle={
                       skill.autoMatch
                         ? skill.description
-                          ? `Auto · ${skill.description}`
+                          ? `Auto Â· ${skill.description}`
                           : "Auto"
                         : (skill.description ?? undefined)
                     }

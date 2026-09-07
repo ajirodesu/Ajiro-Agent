@@ -40,10 +40,10 @@ const LEGACY_TOOL_KEY_MAP: Partial<Record<string, BuiltInToolKey>> = {
   workspaceWriteFile: "workspaceWrite",
 };
 
-export const BUILT_IN_FILE_TOOL_CONTROLS: Array<{
+export const BUILT_IN_FILE_TOOL_CONTROLS: {
   keys: BuiltInToolKey[];
   label: string;
-}> = [
+}[] = [
   {
     label: "List files",
     keys: ["workspaceListFiles", "folderListDirectory"],

@@ -12,7 +12,7 @@ const LIVE_MODEL_CATALOG_TTL_MS = 5 * 60 * 1000;
 let cachedCatalog: { expiresAt: number; models: LiveCatalogModel[] } | null = null;
 
 type LiveModelCatalogResponse = {
-  data?: Array<{
+  data?: {
     context_window?: number;
     id?: string;
     max_tokens?: number;
@@ -25,7 +25,7 @@ type LiveModelCatalogResponse = {
     };
     tags?: string[];
     type?: string;
-  }>;
+  }[];
   object?: string;
 };
 

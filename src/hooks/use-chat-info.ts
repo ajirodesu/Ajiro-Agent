@@ -31,7 +31,7 @@ type DisplayUsage = {
   totalTokens: number | null;
 };
 
-function sumNullableNumbers(values: Array<number | null>) {
+function sumNullableNumbers(values: (number | null)[]) {
   let sawValue = false;
   let total = 0;
 

@@ -1,3 +1,11 @@
+/**
+ * Ajiro Agent sidebar — AMOLED-black redesign.
+ * Structure adapted from the reference sidebar layout (top bar with app name +
+ * search + new-chat affordances, primary nav group, Pinned/Recents history,
+ * floating circular footer buttons) restyled to the Ajiro black palette.
+ *
+ * Author: AjiroDesu
+ */
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -31,15 +39,20 @@ import { useAppState } from "@/hooks/use-app-state";
 import { useChat } from "@/hooks/use-chat";
 import { usePathname, useRouter } from "expo-router";
 import {
-  Edit,
+  Brain,
+  CalendarClock,
   EllipsisVertical,
   Library,
   Pause,
   Pencil,
   Pin,
   PinOff,
-  Settings2,
+  Search,
+  Server,
+  Settings,
+  SquarePen,
   Trash2,
+  X,
 } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
@@ -48,12 +61,21 @@ import type { Conversation } from "@/core/types/app-state";
 import { cn } from "@/core/utils";
 import { useTheme } from "@/hooks/use-theme";
 
+const NAV_ITEMS: {
+  label: string;
+  route: string;
+  icon: typeof Library;
+}[] = [
+  { label: "Library", route: "/library", icon: Library },
+  { label: "Scheduled", route: "/settings/jobs", icon: CalendarClock },
+  { label: "Skills", route: "/settings/skills", icon: Brain },
+  { label: "Plugins", route: "/settings/mcp", icon: Server },
+];
+
 export function AppSidebar() {
   const theme = useTheme();
   const pathname = usePathname();
   const router = useRouter();
-  const settingsActive =
-    pathname === "/settings" || pathname.startsWith("/settings/");
   const { hydrating } = useAppState();
   const {
     conversations,
@@ -63,14 +85,24 @@ export function AppSidebar() {
     runStatusByConversation,
     selectConversation,
   } = useChat();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [renameTarget, setRenameTarget] = useState<Conversation | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
-  const pinnedConversations = conversations.filter(
+
+  const query = searchQuery.trim().toLowerCase();
+  const visibleConversations = query
+    ? conversations.filter((conversation) =>
+        conversation.title.toLowerCase().includes(query),
+      )
+    : conversations;
+
+  const pinnedConversations = visibleConversations.filter(
     (conversation) => conversation.pinnedAt,
   );
-  const otherConversations = conversations.filter(
+  const otherConversations = visibleConversations.filter(
     (conversation) => !conversation.pinnedAt,
   );
 
@@ -81,6 +113,7 @@ export function AppSidebar() {
       <SidebarMenuItem key={conversation.id}>
         <SidebarClose asChild>
           <SidebarMenuButton
+            fullBleed
             isActive={active}
             onPress={() => {
               selectConversation(conversation.id)
@@ -94,9 +127,7 @@ export function AppSidebar() {
               <Text
                 className={cn(
                   "min-w-0 flex-1 font-sans text-sm font-medium",
-                  active
-                    ? "text-background dark:text-background-dark"
-                    : "text-foreground dark:text-foreground-dark",
+                  "text-foreground dark:text-foreground-dark",
                 )}
                 numberOfLines={1}
               >
@@ -107,23 +138,20 @@ export function AppSidebar() {
                 runStatusByConversation[conversation.id] === "queued" ||
                 runStatusByConversation[conversation.id] === "resumable" ? (
                   <ActivityIndicator
-                    color={active ? theme.background : theme.textSecondary}
+                    color={theme.textSecondary}
                     size="small"
                   />
                 ) : runStatusByConversation[conversation.id] ===
                     "waiting_for_approval" ||
                   runStatusByConversation[conversation.id] ===
                     "waiting_for_question" ? (
-                  <Pause
-                    color={active ? theme.background : theme.textSecondary}
-                    size={14}
-                  />
+                  <Pause color={theme.textSecondary} size={14} />
                 ) : (
                   <ChatOptions
                     conversationId={conversation.id}
-                    color={active ? theme.background : theme.textSecondary}
+                    color={theme.textSecondary}
                     pinned={Boolean(conversation.pinnedAt)}
-                    pinnedCount={pinnedConversations.length}
+                    pinnedCount={conversations.filter((item) => item.pinnedAt).length}
                     onRename={() => {
                       setRenameTarget(conversation);
                       setRenameTitle(conversation.title);
@@ -162,6 +190,14 @@ export function AppSidebar() {
       });
   };
 
+  const openNewChat = () => {
+    createConversation()
+      .then(() => {
+        router.push("/");
+      })
+      .catch(console.error);
+  };
+
   return (
     <>
       <Sidebar>
@@ -169,61 +205,81 @@ export function AppSidebar() {
           <Text className="font-sans text-2xl font-semibold text-foreground dark:text-foreground-dark">
             Ajiro Agent
           </Text>
-          <SidebarClose asChild>
+          <View className="flex-row items-center gap-sp-1">
             <Button
-              accessibilityLabel="New chat"
+              accessibilityLabel="Search chats"
               onPress={() => {
-                createConversation()
-                  .then(() => {
-                    router.push("/");
-                  })
-                  .catch(console.error);
+                setSearchOpen((current) => !current);
+                setSearchQuery("");
               }}
               size="icon"
               variant="ghost"
             >
-              <Edit color={theme.text} size={20} />
+              {searchOpen ? (
+                <X color={theme.text} size={20} />
+              ) : (
+                <Search color={theme.text} size={20} />
+              )}
             </Button>
-          </SidebarClose>
+            <SidebarClose asChild>
+              <Button
+                accessibilityLabel="New chat"
+                onPress={openNewChat}
+                size="icon"
+                variant="ghost"
+              >
+                <SquarePen color={theme.text} size={20} />
+              </Button>
+            </SidebarClose>
+          </View>
         </SidebarHeader>
         <SidebarContent>
+          {searchOpen ? (
+            <View className="pb-sp-1">
+              <Input
+                accessibilityLabel="Search chats"
+                autoFocus
+                onChangeText={setSearchQuery}
+                placeholder="Search chats…"
+                value={searchQuery}
+              />
+            </View>
+          ) : null}
+
           <SidebarGroup className="pb-sp-2">
             <SidebarMenu className="gap-0">
-              <SidebarMenuItem>
-                <SidebarClose asChild>
-                  <SidebarMenuButton
-                    className="min-h-10 rounded-lg !px-0 !py-sp-1"
-                    isActive={pathname === "/library"}
-                    leftIcon={
-                      <Library
-                        color={
-                          pathname === "/library"
-                            ? theme.background
-                            : theme.text
+              {NAV_ITEMS.map((item) => {
+                const active =
+                  pathname === item.route || pathname.startsWith(`${item.route}/`);
+
+                return (
+                  <SidebarMenuItem key={item.route}>
+                    <SidebarClose asChild>
+                      <SidebarMenuButton
+                        fullBleed
+                        isActive={active}
+                        leftIcon={
+                          <item.icon
+                            color={theme.text}
+                            size={22}
+                            strokeWidth={2}
+                          />
                         }
-                        size={24}
-                        strokeWidth={2.25}
-                      />
-                    }
-                    onPress={() => {
-                      router.push("/library");
-                    }}
-                  >
-                    <Text
-                      className={cn(
-                        "font-sans text-lg font-semibold",
-                        pathname === "/library"
-                          ? "text-background dark:text-background-dark"
-                          : "text-foreground dark:text-foreground-dark",
-                      )}
-                    >
-                      Library
-                    </Text>
-                  </SidebarMenuButton>
-                </SidebarClose>
-              </SidebarMenuItem>
+                        onPress={() => {
+                          router.push(item.route as never);
+                        }}
+                      >
+                        <Text className="font-sans text-base font-semibold text-foreground dark:text-foreground-dark">
+                          {item.label}
+                        </Text>
+                      </SidebarMenuButton>
+                    </SidebarClose>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroup>
+
           {pinnedConversations.length > 0 ? (
             <SidebarGroup>
               <SidebarGroupLabel className="!px-0 text-sm font-semibold normal-case tracking-normal text-foreground dark:text-foreground-dark">
@@ -236,11 +292,11 @@ export function AppSidebar() {
           ) : null}
           <SidebarGroup>
             <SidebarGroupLabel className="!px-0 text-sm font-semibold normal-case tracking-normal text-foreground dark:text-foreground-dark">
-              Chats
+              Recents
             </SidebarGroupLabel>
             <SidebarMenu>
               {otherConversations.map(renderConversation)}
-              {conversations.length === 0 ? (
+              {visibleConversations.length === 0 ? (
                 <SidebarMenuItem>
                   {hydrating ? (
                     <View className="flex-row items-center gap-sp-2 px-sp-2 py-sp-2">
@@ -254,7 +310,9 @@ export function AppSidebar() {
                     </View>
                   ) : (
                     <Text className="px-sp-2 font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
-                      No chats yet. Start a new conversation.
+                      {query
+                        ? "No chats match your search."
+                        : "No chats yet. Start a new conversation."}
                     </Text>
                   )}
                 </SidebarMenuItem>
@@ -263,22 +321,23 @@ export function AppSidebar() {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <View className="border-t border-border pt-sp-3 dark:border-border-dark">
+          {/* No divider — floating buttons sit flush against the content. */}
+          <View className="flex-row items-center justify-between">
+            <FloatingCircleButton
+              accessibilityLabel="New chat"
+              onPress={openNewChat}
+            >
+              <SquarePen color={theme.text} size={22} />
+            </FloatingCircleButton>
             <SidebarClose asChild>
-              <SidebarMenuButton
-                isActive={settingsActive}
-                leftIcon={
-                  <Settings2
-                    color={settingsActive ? theme.background : theme.text}
-                    size={16}
-                  />
-                }
+              <FloatingCircleButton
+                accessibilityLabel="Settings"
                 onPress={() => {
                   router.push("/settings");
                 }}
               >
-                Settings
-              </SidebarMenuButton>
+                <Settings color={theme.text} size={22} />
+              </FloatingCircleButton>
             </SidebarClose>
           </View>
         </SidebarFooter>
@@ -341,6 +400,37 @@ export function AppSidebar() {
         </ModalContent>
       </Modal>
     </>
+  );
+}
+
+function FloatingCircleButton({
+  accessibilityLabel,
+  children,
+  onPress,
+}: {
+  accessibilityLabel: string;
+  children: React.ReactNode;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      className="h-13 w-13 items-center justify-center rounded-full bg-sidebar-element dark:bg-sidebar-element-dark"
+      onPress={onPress}
+      style={({ pressed }) => ({
+        elevation: 6,
+        height: 52,
+        opacity: pressed ? 0.88 : 1,
+        shadowColor: "#000000",
+        shadowOffset: { height: 4, width: 0 },
+        shadowOpacity: 0.55,
+        shadowRadius: 8,
+        width: 52,
+      })}
+    >
+      {children}
+    </Pressable>
   );
 }
 

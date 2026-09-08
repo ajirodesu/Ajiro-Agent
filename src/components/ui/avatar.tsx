@@ -12,7 +12,6 @@ import type {
   ComponentPropsWithoutRef,
   ComponentRef,
   PropsWithChildren,
-  ReactNode,
 } from "react";
 import { Text, View } from "react-native";
 

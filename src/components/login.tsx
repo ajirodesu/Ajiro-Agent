@@ -53,12 +53,11 @@ export default function Login() {
 
         const accessToken = tokenData.access_token;
         const refreshToken = tokenData.refresh_token;
-        const idToken = tokenData.id_token;
 
         await SecureStore.setItemAsync("openai_access_token", accessToken);
         await SecureStore.setItemAsync("openai_refresh_token", refreshToken);
-      } catch (error) {
-        // console.log("Exchange error:", error);
+      } catch {
+        // Token exchange failures surface on the following auth attempt.
       }
 
       console.log("State matched. Now exchange token.");

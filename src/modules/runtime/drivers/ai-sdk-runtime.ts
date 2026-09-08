@@ -7,7 +7,7 @@ import type {
 } from "@/modules/runtime/drivers/types";
 import { createStreamSmoother } from "@/modules/runtime/stream-smoother";
 
-/** No text deltas for this long → treat the provider stream as stalled. */
+/** No text deltas for this long â†’ treat the provider stream as stalled. */
 export const STREAM_STALL_TIMEOUT_MS = 60_000;
 
 export function shouldUseStreamingAISDK() {
@@ -103,8 +103,14 @@ async function generateViaAISDKWithContinuation(
   };
 
   try {
+    // streamAbort chains the caller's signal with the stall watchdog below:
+    // either one cancels the provider stream.
+    const streamAbort = new AbortController();
+    const onAbort = () => streamAbort.abort(params.abortSignal?.reason);
+    params.abortSignal?.addEventListener("abort", onAbort, { once: true });
+
     const result = streamText({
-      abortSignal: params.abortSignal,
+      abortSignal: streamAbort.signal,
       headers: params.requestHeaders,
       includeRawChunks: params.model.transport === "openaiCompatible",
       model: providerModel,
@@ -213,12 +219,9 @@ async function generateViaAISDKWithContinuation(
       let lastDeltaAt = Date.now();
       const stallTimer = setInterval(() => {
         if (Date.now() - lastDeltaAt > STREAM_STALL_TIMEOUT_MS) {
-          streamAbort.abort();
+          streamAbort.abort(new Error("Stream stalled"));
         }
       }, 2_000);
-      const streamAbort = new AbortController();
-      const onAbort = () => streamAbort.abort(params.abortSignal?.reason);
-      params.abortSignal?.addEventListener("abort", onAbort, { once: true });
 
       try {
         for await (const delta of result.textStream) {
@@ -229,7 +232,7 @@ async function generateViaAISDKWithContinuation(
       } catch (streamError) {
         if (streamAbort.signal.aborted && !params.abortSignal?.aborted) {
           const stallError = new Error(
-            "Response stalled — no data from the provider for a while.",
+            "Response stalled: no data from the provider for a while.",
           );
           stallError.name = "StreamStalledError";
           throw stallError;

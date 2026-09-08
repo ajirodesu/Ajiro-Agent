@@ -210,10 +210,10 @@ function logComposerDebug(label: string, data: Record<string, unknown>) {
 
 /**
  * Pill input geometry (ChatGPT-style 4-state auto-resize):
- * 1. empty â†’ compact bar (textarea collapses, buttons define the height)
- * 2. typing â†’ slightly taller single line
- * 3. wrapping â†’ grows one line at a time (leading-6 = 24px per line)
- * 4. MAX_LINES reached â†’ locks and the field scrolls internally.
+ * 1. empty ? compact bar (textarea collapses, buttons define the height)
+ * 2. typing ? slightly taller single line
+ * 3. wrapping ? grows one line at a time (leading-6 = 24px per line)
+ * 4. MAX_LINES reached ? locks and the field scrolls internally.
  */
 const COMPOSER_LINE_HEIGHT = 24;
 const COMPOSER_EMPTY_HEIGHT = 24;
@@ -548,7 +548,7 @@ export default function Screen() {
                 >
                   <ActivityIndicator color={theme.textSecondary} size="small" />
                   <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
-                    Loading chatÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦
+                    Loading chat?
                   </Text>
                 </View>
               ) : (
@@ -623,7 +623,7 @@ export default function Screen() {
               canSend={ready && currentModel !== null}
               currentModelLabel={
                 currentModel
-                  ? `${currentModel.providerLabel} Ãƒâ€šÃ‚Â· ${currentModel.label}`
+                  ? `${currentModel.providerLabel} · ${currentModel.label}`
                   : null
               }
               activeModels={chatInputModelOptions}
@@ -1172,7 +1172,7 @@ const ChatInput = memo(function ChatInput({
   // Auto-resize (4 states): compact when empty, slightly taller on the first
   // typed line, grows line-by-line while wrapping, then locks at the 10-line
   // max and scrolls internally. Shrinks back down as text is removed, and all
-  // height changes animate via reanimated â€” no snapping.
+  // height changes animate via reanimated ? no snapping.
   const hasComposerText = prompt.trim().length > 0;
   const composerTargetHeight = !hasComposerText
     ? COMPOSER_EMPTY_HEIGHT
@@ -1881,7 +1881,7 @@ const ChatInput = memo(function ChatInput({
                   <AttachmentDescription>
                     {file.mimeType ?? "Unknown type"}
                     {typeof file.size === "number"
-                      ? ` Ãƒâ€šÃ‚Â· ${file.size} bytes`
+                      ? ` ? ${file.size} bytes`
                       : ""}
                   </AttachmentDescription>
                 </AttachmentContent>
@@ -1928,7 +1928,7 @@ const ChatInput = memo(function ChatInput({
 
         <View className="rounded-pill border border-border bg-input dark:border-border-dark dark:bg-input-dark">
           {/* Icons stay vertically centered at every bar height; the container
-              itself has no hover/press effect — feedback is isolated to the
+              itself has no hover/press effect ? feedback is isolated to the
               icon buttons. */}
           <View className="flex-row items-center px-2 py-1.5">
             <Pressable
@@ -2177,8 +2177,8 @@ const ChatInput = memo(function ChatInput({
               icon={<ClipboardList color={theme.text} size={16} />}
               label={
                 conversationAgentName === "build"
-                  ? "Select agent Â· Build"
-                  : `Select agent Â· ${conversationAgentName}`
+                  ? "Select agent · Build"
+                  : `Select agent · ${conversationAgentName}`
               }
               onPress={() => {
                 setPlusMenuDrawerOpen(false);
@@ -2206,7 +2206,7 @@ const ChatInput = memo(function ChatInput({
             />
             <ComposerMenuRow
               icon={<Brain color={theme.text} size={16} />}
-              label={`Tool approval Ãƒâ€šÃ‚Â· ${toolApprovalMode === "ask" ? "Ask" : "Allow"}`}
+              label={`Tool approval ? ${toolApprovalMode === "ask" ? "Ask" : "Allow"}`}
               onPress={() => {
                 setPlusMenuDrawerOpen(false);
                 setApprovalModeDrawerOpen(true);
@@ -2500,7 +2500,7 @@ const ChatInput = memo(function ChatInput({
                     subtitle={
                       skill.autoMatch
                         ? skill.description
-                          ? `Auto Ãƒâ€šÃ‚Â· ${skill.description}`
+                          ? `Auto ? ${skill.description}`
                           : "Auto"
                         : (skill.description ?? undefined)
                     }

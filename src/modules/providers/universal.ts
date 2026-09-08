@@ -1,8 +1,8 @@
 /**
  * Universal provider adapter: configuration-driven provider support.
  *
- * Any provider speaking the OpenAI chat-completions shape â€” or the Anthropic
- * messages shape â€” can be added at runtime purely through configuration (base
+ * Any provider speaking the OpenAI chat-completions shape — or the Anthropic
+ * messages shape — can be added at runtime purely through configuration (base
  * URL + API key + schema family). Built-in named providers are just pre-filled
  * instances of the same two adapters; no per-provider logic exists anywhere.
  * For OpenAI-shaped providers, model lists are fetched live from the
@@ -245,7 +245,7 @@ export async function testProviderConnection(
     );
 
     if (response.ok) {
-      return { message: "Connection OK â€” credentials accepted.", ok: true };
+      return { message: "Connection OK — credentials accepted.", ok: true };
     }
 
     if (response.status === 401 || response.status === 403) {

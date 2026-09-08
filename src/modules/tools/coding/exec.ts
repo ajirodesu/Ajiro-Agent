@@ -1,17 +1,17 @@
 /**
  * Exec tool for the on-device coding harness.
  *
- * CHOSEN APPROACH â€” option (c): a fixed allow-list of in-process JS
+ * CHOSEN APPROACH — option (c): a fixed allow-list of in-process JS
  * implementations of common checks, NOT a real shell.
  *
  * Why:
- * 1. Stock Android (no root, no Termux) exposes no exec() for apps â€”
+ * 1. Stock Android (no root, no Termux) exposes no exec() for apps —
  *    Runtime.getRuntime().exec() can only run the app's own bundled binaries,
  *    so a general shell (option a) would require shipping one or rooting.
  * 2. Termux:API (option b) adds a hard external dependency on another app and
  *    an intent round-trip per command; the app cannot assume it is installed.
- * 3. The checks that matter for a coding verify loop â€” typecheck, lint, text
- *    search, file stats, git status â€” can all be implemented in-process with
+ * 3. The checks that matter for a coding verify loop — typecheck, lint, text
+ *    search, file stats, git status — can all be implemented in-process with
  *    JS libraries (@babel/parser parse of changed files, regex grep, git via
  *    isomorphic-git). That keeps everything sandboxed inside the SAF-granted
  *    project directory, approval-gated, and identical on every device.
@@ -38,7 +38,7 @@ export const EXEC_COMMAND_IDS: CodingExecCommandId[] = [
 
 export const EXEC_COMMAND_DESCRIPTIONS: Record<CodingExecCommandId, string> = {
   "typecheck-js":
-    "Parse every JS/TS/JSX/TSX file under a path with @babel/parser (TypeScript + JSX plugins) and report syntax errors. Not a full type checker â€” it catches syntax-level breakage.",
+    "Parse every JS/TS/JSX/TSX file under a path with @babel/parser (TypeScript + JSX plugins) and report syntax errors. Not a full type checker ? it catches syntax-level breakage.",
   "lint-js":
     "Basic structural lint over JS/TS files under a path: unused imports, `var` usage, `debugger`/`console.log` statements, empty catch blocks.",
   "grep-count":
@@ -340,7 +340,7 @@ export async function readProjectFilesForExec(
       const text = await service.readTextFile(session, file.path, maxCharsPerFile);
       textCache.set(file.path, text);
     } catch {
-      // binary or unreadable — leave cache empty for this path
+      // binary or unreadable ? leave cache empty for this path
     }
   }
 }

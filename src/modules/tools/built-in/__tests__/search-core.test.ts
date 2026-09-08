@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { globToRegExp, matchesGlob, matchTextLines } from "../search-core";
+import { matchesGlob, matchTextLines } from "../search-core";
 
 describe("globToRegExp & matchesGlob", () => {
   it("matches root-level files with **/*.ts pattern", () => {

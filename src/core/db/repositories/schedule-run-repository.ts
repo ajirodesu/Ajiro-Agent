@@ -1,5 +1,5 @@
 import * as Crypto from "expo-crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import { scheduleRuns } from "@/core/db/schema";
 import { nowIso } from "@/core/db/repositories/shared";

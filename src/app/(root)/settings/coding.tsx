@@ -43,7 +43,7 @@ function CheckRow({
       onPress={onToggle}
     >
       <Text className="font-sans text-base text-foreground dark:text-foreground-dark">
-        {checked ? "â˜‘" : "â˜"} {label}
+        {checked ? "?" : "?"} {label}
       </Text>
       <Text className="font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
         {description}
@@ -119,7 +119,7 @@ export default function CodingSettingsScreen() {
               Local git tools
             </Text>
             <Text className="font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
-              status, diff, add, commit, branch, log â€” via isomorphic-git on the
+              status, diff, add, commit, branch, log — via isomorphic-git on the
               granted project folder. Remote operations use GitHub MCP.
             </Text>
           </View>

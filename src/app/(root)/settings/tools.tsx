@@ -5,7 +5,7 @@ import {
   ListChecks,
 } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
-import { Pressable, Platform, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { ToolToggleList } from "@/components/settings/tool-toggle-list";
 import { Container } from "@/components/shared/container";
@@ -90,7 +90,7 @@ export default function SettingsToolsScreen() {
           </DrawerHeader>
           <DrawerBody contentContainerClassName="gap-sp-3">
             <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
-              Stop an agent loop after this many model steps (1–100).
+              Stop an agent loop after this many model steps (1?100).
             </Text>
             <Input
               keyboardType="number-pad"

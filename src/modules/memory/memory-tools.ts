@@ -17,8 +17,10 @@ Do NOT save task progress, session outcomes, completed-work logs, or temporary T
 Specifically: do not record PR numbers, issue numbers, commit SHAs, 'fixed bug X', 'submitted PR Y', 'Phase N done', file counts, or any artifact that will be stale in 7 days. If a fact will be stale in a week, it does not belong in memory.
 
 Write memories as declarative facts, not instructions to yourself.
-- 'User prefers concise responses' ✓ — 'Always respond concisely' ✗.
-- 'Project uses pytest with xdist' ✓ — 'Run tests with pytest -n 4' ✗.
+- Bad: 'the user prefers concise responses'
+- Good: 'Always respond concisely'
+- Bad: 'the project uses pytest with xdist'
+- Good: 'Run tests with pytest -n 4'
 
 `;
 

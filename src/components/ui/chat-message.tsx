@@ -1,6 +1,6 @@
 import { useRecyclingState } from "@shopify/flash-list";
 import * as Clipboard from "expo-clipboard";
-import { Directory, File, Paths } from "expo-file-system";
+import { File, Paths } from "expo-file-system";
 import * as LegacyFileSystem from "expo-file-system/legacy";
 import { Image } from "expo-image";
 import * as IntentLauncher from "expo-intent-launcher";
@@ -220,7 +220,7 @@ const MARKDOWN_RULES = {
           >
             {checked ? (
               <Text accessible={false} style={styles.task_list_check}>
-                ✓
+                ?
               </Text>
             ) : null}
           </View>
@@ -245,7 +245,7 @@ const MARKDOWN_RULES = {
     return (
       <View key={node.key} style={styles._VIEW_SAFE_list_item}>
         <Text accessible={false} style={styles.bullet_list_icon}>
-          {Platform.select({ android: "•", ios: "·", default: "•" })}
+          {Platform.select({ android: "?", ios: "?", default: "?" })}
         </Text>
         <View style={styles._VIEW_SAFE_bullet_list_content}>{children}</View>
       </View>
@@ -1615,47 +1615,6 @@ export const ChatMessage = memo(function ChatMessage({
   );
 });
 
-function buildGeneratedImageFileName(image: GeneratedImageAttachment) {
-  return `ajiro-agent-${image.id}.${getImageExtension(image.mimeType)}`;
-}
-
-function buildAvailableGeneratedImageFile(
-  directory: Directory,
-  image: GeneratedImageAttachment,
-) {
-  const extension = getImageExtension(image.mimeType);
-  const baseName = `ajiro-agent-${image.id}`;
-  const existingNames = new Set(directory.list().map((entry) => entry.name));
-
-  if (!existingNames.has(`${baseName}.${extension}`)) {
-    return new File(directory, `${baseName}.${extension}`);
-  }
-
-  let suffix = 2;
-
-  while (existingNames.has(`${baseName}-${suffix}.${extension}`)) {
-    suffix += 1;
-  }
-
-  return new File(directory, `${baseName}-${suffix}.${extension}`);
-}
-
-function getImageExtension(mimeType: string) {
-  if (mimeType === "image/jpeg") {
-    return "jpg";
-  }
-
-  if (mimeType === "image/webp") {
-    return "webp";
-  }
-
-  return "png";
-}
-
-function isUserCanceledFileAction(error: unknown) {
-  return error instanceof Error && /cancel/i.test(error.message);
-}
-
 function isUserCanceledShare(error: unknown) {
   return error instanceof Error && /cancel/i.test(error.message);
 }
@@ -1776,7 +1735,7 @@ function formatTimelineDuration(
     Number.isNaN(completedAt) ||
     completedAt < startedAt
   ) {
-    return "—";
+    return "?";
   }
 
   const durationMs = completedAt - startedAt;
@@ -2012,6 +1971,30 @@ function createMarkdownStyles(input: {
   } satisfies StyleSheet.NamedStyles<any>;
 }
 
+function getImageExtension(uri: string) {
+  const match = /\.(?:png|jpe?g|webp|gif)(?=$|\?)/i.exec(uri);
+
+  if (match) {
+    const extension = match[0]!.toLowerCase();
+
+    return extension === "jpeg" ? "jpg" : extension.replace(/^\./, "");
+  }
+
+  if (imageMimeTypeIs(imageMimeTypeFromUri(uri), "webp")) return "webp";
+
+  return "png";
+}
+
+function imageMimeTypeFromUri(uri: string) {
+  if (/\.webp(?=$|\?)/i.test(uri)) return "image/webp";
+  if (/\.gif(?=$|\?)/i.test(uri)) return "image/gif";
+  if (/\.jpe?g(?=$|\?)/i.test(uri)) return "image/jpeg";
+  return "image/png";
+}
+
+function imageMimeTypeIs(mimeType: string, kind: string) {
+  return mimeType === `image/${kind}`;
+}
 const getLocalImageFile = async (image: GeneratedImageAttachment) => {
   const extension = getImageExtension(image.uri);
   const fileName = `generated-image-${Date.now()}.${extension}`;

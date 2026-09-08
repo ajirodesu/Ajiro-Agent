@@ -295,8 +295,6 @@ export async function executeClaimedAgentRun(
     retryRun,
     shouldKeepBackgroundAgentAlive,
     refreshScheduler,
-    onAgentsChange,
-    spawnSubagent,
   } = deps;
 
   const run =
@@ -1513,7 +1511,7 @@ export async function executeClaimedAgentRun(
 
     pushTimelineEvent(
       createExecutionTimelineEvent({
-        detail: `${resolvedModel.providerLabel} Â· ${resolvedModel.label}`,
+        detail: `${resolvedModel.providerLabel} ? ${resolvedModel.label}`,
         kind: "run",
         status: "info",
         title: "Run started",

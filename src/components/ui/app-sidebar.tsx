@@ -1,5 +1,5 @@
 /**
- * Ajiro Agent sidebar â€” slide-out navigation drawer.
+ * Ajiro Agent sidebar ? slide-out navigation drawer.
  * Near-black panel (#0D0D0D-#141414 equivalent via sidebar tokens), scrollable
  * content with sticky bottom bar (Chat / avatar / voice), thin right-edge
  * divider, five primary nav items, Pinned + Recents sections with an optional
@@ -44,7 +44,6 @@ import {
   AudioLines,
   BookMarked,
   Check,
-  ChevronDown,
   Clock,
   EllipsisVertical,
   FolderOpen,
@@ -283,7 +282,7 @@ export function AppSidebar() {
                 accessibilityLabel="Search chats"
                 autoFocus
                 onChangeText={setSearchQuery}
-                placeholder="Search chatsâ€¦"
+                placeholder="Search chats…"
                 value={searchQuery}
               />
             </View>
@@ -382,7 +381,7 @@ export function AppSidebar() {
                         size="small"
                       />
                       <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
-                        Loading chatsâ€¦
+                        Loading chats…
                       </Text>
                     </View>
                   ) : (

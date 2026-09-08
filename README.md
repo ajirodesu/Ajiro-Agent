@@ -27,11 +27,7 @@ The application is distributed through GitHub Releases.
 3. Grant the required permissions.
 4. Start using Ajiro Agent.
 
-## Contributing
-
-Contributions are welcome. Feel free to open an issue for bug reports, feature requests, or submit a pull request if you'd like to contribute.
-
-# 🙏 Original Source & Special Thanks
+## 🙏 Original Source & Special Thanks
 
 Ajiro Agent is based on the original **Mobile Agent** project developed by **TecnicalBot**.
 
@@ -57,6 +53,9 @@ https://github.com/ajirodesu/ajiro-agent
 
 All subsequent modifications and additions specific to Ajiro Agent are maintained by **AjiroDesu**.
 
+## Contributing
+
+Contributions are welcome. Feel free to open an issue for bug reports, feature requests, or submit a pull request if you'd like to contribute.
 
 ## License
 

@@ -24,6 +24,7 @@ export function createConversationRepository(
         pinnedAt: input.pinnedAt ?? null,
         reasoningEffort: "medium",
         agentMode: "build",
+        agentId: input.agentId ?? null,
         selectedFileIds: [],
         selectedSkillIds: [],
         externalFolderSession: null,
@@ -90,6 +91,7 @@ export function createConversationRepository(
             input.pinnedAt !== undefined ? input.pinnedAt : current.pinnedAt,
           reasoningEffort: input.reasoningEffort ?? current.reasoningEffort,
           agentMode: input.agentMode ?? current.agentMode,
+          agentId: input.agentId !== undefined ? input.agentId : current.agentId,
           selectedFileIds: input.selectedFileIds ?? current.selectedFileIds,
           selectedMcpServerIds:
             input.selectedMcpServerIds !== undefined

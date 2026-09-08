@@ -62,7 +62,13 @@ import {
     parseSkillMarkdown,
     serializeSkillToMarkdown,
 } from "@/modules/skills/skill-markdown";
+import {
+    fetchSkillFiles,
+    SKILL_FILE_MAX_COUNT,
+    SKILL_FILE_MAX_TOTAL_BYTES,
+} from "@/modules/skills/skill-files";
 import type {
+    AgentConfig,
     AgentMode,
     AgentRun,
     AppSettings,
@@ -100,7 +106,9 @@ import {
     syncScheduleCalendarNotifications,
 } from "@/modules/scheduler";
 
-import { executeClaimedAgentRun, type AgentRunDeps } from "./agent-run";
+import { executeClaimedAgentRun, executeSubagentTask, type AgentRunDeps } from "./agent-run";
+import { isNativeAgentId, resolveConversationAgent } from "@/modules/agents/registry";
+import { normalizeAgentName, parseAgentMarkdown, serializeAgentToMarkdown } from "@/modules/agents/agent-markdown";
 import { createRunUiPublisher } from "./run-ui-publisher";
 import { resolveConfig } from "./config-resolution";
 import {
@@ -208,7 +216,24 @@ type AppStateContextValue = {
     importSkillMarkdown: (input: {
         markdown: string;
         replaceById?: string | null;
+        sourceUrl?: string | null;
+        extraFiles?: string[];
+        localFiles?: {
+            path: string;
+            content: string;
+            mimeType: string | null;
+            size: number | null;
+        }[];
     }) => Promise<SkillConfig>;
+    addSkillFiles: (
+        skillId: string,
+        files: {
+            path: string;
+            content: string;
+            mimeType?: string | null;
+            size?: number | null;
+        }[],
+    ) => Promise<void>;
     exportSkillMarkdown: (skillId: string) => string;
     createSavedPrompt: (input: {
         content: string;
@@ -293,6 +318,12 @@ type AppStateContextValue = {
     setReasoningEffort: (effort: ReasoningEffort) => Promise<void>;
     agentMode: AgentMode;
     setAgentMode: (mode: AgentMode) => Promise<void>;
+    currentSelectedAgentId: string | null;
+    conversationAgentName: string;
+    setConversationAgent: (
+        conversationId: string,
+        agentIdOrName: string | null,
+    ) => Promise<void>;
     setCurrentSelectedFileIds: (selectedFileIds: string[]) => Promise<void>;
     setCurrentSelectedMcpServerIds: (
         selectedMcpServerIds: string[] | null,
@@ -332,6 +363,40 @@ type AppStateContextValue = {
     updateCodingSettings: (
         input: Partial<AppSettings["codingSettings"]>,
     ) => Promise<void>;
+    agents: AgentConfig[];
+    createAgent: (input: {
+        description?: string | null;
+        mode?: AgentConfig["mode"];
+        modelModelId?: string | null;
+        modelProviderId?: string | null;
+        name: string;
+        prompt?: string | null;
+        sourceMarkdown?: string | null;
+        temperature?: number | null;
+        toolPermissions?: AgentConfig["toolPermissions"];
+    }) => Promise<AgentConfig>;
+    updateAgent: (
+        agentId: string,
+        input: {
+            description?: string | null;
+            enabled?: boolean;
+            hidden?: boolean;
+            mode?: AgentConfig["mode"];
+            modelModelId?: string | null;
+            modelProviderId?: string | null;
+            name?: string;
+            prompt?: string | null;
+            sourceMarkdown?: string | null;
+            temperature?: number | null;
+            toolPermissions?: AgentConfig["toolPermissions"];
+        },
+    ) => Promise<void>;
+    deleteAgent: (agentId: string) => Promise<void>;
+    importAgentMarkdown: (input: {
+        markdown: string;
+        replaceById?: string | null;
+    }) => Promise<AgentConfig>;
+    exportAgentMarkdown: (agentId: string) => string;
     updateMaxToolSteps: (maxToolSteps: number) => Promise<void>;
     updateThemeMode: (mode: AppSettings["themeMode"]) => Promise<void>;
     updateProvider: (
@@ -677,7 +742,7 @@ Follow all rules in <rules>
 Use the <examples> so you know what a good title looks like.
 Your output must be:
 - A single line
-- â‰¤50 characters
+- Ã¢â€°Â¤50 characters
 - No explanations
 </task>
 
@@ -687,8 +752,8 @@ Your output must be:
 </rules>
 
 <examples>
-"write a blog post on x and store in my notion" â†’ Blog for X
-"checkout x repo on github" â†’ Explore X Repo
+"write a blog post on x and store in my notion" Ã¢â€ â€™ Blog for X
+"checkout x repo on github" Ã¢â€ â€™ Explore X Repo
 </examples>
 `;
         const fallback = buildConversationTitle(input.firstUserMessage);
@@ -849,6 +914,7 @@ Your output must be:
                     ) ?? null;
             }
             const agentRuns = await repositories.agentRunRepository.list();
+            const agents = await repositories.agentRepository.list();
             const staleRuns = agentRuns.filter(
                 (run) =>
                     (run.status === "running" || run.status === "waiting_for_approval" || run.status === "waiting_for_question" || run.status === "retrying") &&
@@ -901,8 +967,10 @@ Your output must be:
             const workspaceFiles = await repositories.workspaceRepository.list();
             const nextSnapshot = {
                 agentRuns: normalizedAgentRuns,
+                agents,
                 conversations,
                 currentConversation,
+                currentSelectedAgentId: currentConversation?.agentId ?? null,
                 currentSelectedFileIds: currentConversation?.selectedFileIds ?? [],
                 currentSelectedMcpServerIds:
                     currentConversation?.selectedMcpServerIds ?? null,
@@ -1768,11 +1836,115 @@ Your output must be:
         await hydrate();
     }
 
+    async function addSkillFiles(
+        skillId: string,
+        files: {
+            path: string;
+            content: string;
+            mimeType?: string | null;
+            size?: number | null;
+        }[],
+    ) {
+        const current =
+            await repositoriesRef.current.skillRepository.getById(skillId);
+
+        if (!current) {
+            throw new Error(`Skill not found: ${skillId}`);
+        }
+
+        const byPath = new Map<string, {
+            path: string;
+            content: string;
+            mimeType: string | null;
+            size: number | null;
+            id?: string;
+        }>(
+            current.skillFiles.map((file) => [
+                file.path,
+                {
+                    id: file.id,
+                    path: file.path,
+                    content: file.content,
+                    mimeType: file.mimeType,
+                    size: file.size,
+                },
+            ]),
+        );
+        let totalBytes = current.skillFiles.reduce(
+            (sum, file) => sum + (file.size ?? 0),
+            0,
+        );
+
+        for (const file of files) {
+            if (byPath.has(file.path)) {
+                continue;
+            }
+
+            if (byPath.size >= SKILL_FILE_MAX_COUNT) {
+                break;
+            }
+
+            totalBytes += file.size ?? 0;
+
+            if (totalBytes > SKILL_FILE_MAX_TOTAL_BYTES) {
+                break;
+            }
+
+            byPath.set(file.path, {
+                id: undefined,
+                path: file.path,
+                content: file.content,
+                mimeType: file.mimeType ?? null,
+                size: file.size ?? null,
+            });
+        }
+
+        if (byPath.size === current.skillFiles.length) {
+            return;
+        }
+
+        await repositoriesRef.current.skillRepository.update(skillId, {
+            skillFiles: Array.from(byPath.values()),
+        });
+        await hydrate();
+    }
+
     async function importSkillMarkdown(input: {
         markdown: string;
         replaceById?: string | null;
+        sourceUrl?: string | null;
+        extraFiles?: string[];
+        localFiles?: {
+            path: string;
+            content: string;
+            mimeType: string | null;
+            size: number | null;
+        }[];
     }) {
         const parsed = parseSkillMarkdown(input.markdown);
+        const discovered = input.sourceUrl
+            ? await fetchSkillFiles({
+                  sourceUrl: input.sourceUrl,
+                  referencedPaths: parsed.files,
+                  extraFiles: input.extraFiles,
+              })
+            : [];
+        const byPath = new Map<string, (typeof discovered)[number]>();
+
+        for (const file of discovered) {
+            byPath.set(file.path, file);
+        }
+
+        for (const file of input.localFiles ?? []) {
+            byPath.set(file.path, file);
+        }
+
+        const fileInput = Array.from(byPath.values()).map((file) => ({
+            path: file.path,
+            content: file.content,
+            mimeType: file.mimeType,
+            size: file.size,
+        }));
         let skill: SkillConfig;
 
         if (input.replaceById) {
@@ -1804,8 +1976,13 @@ Your output must be:
                 matchKeywords: parsed.matchKeywords,
                 recommendedBuiltInToolKeys: parsed.recommendedBuiltInToolKeys,
                 recommendedMcpServerIds: parsed.recommendedMcpServerIds,
+                skillFiles: fileInput,
                 title: parsed.title,
             });
+        }
+
+        if (input.replaceById && fileInput.length > 0) {
+            await addSkillFiles(input.replaceById, fileInput);
         }
 
         await hydrate();
@@ -1920,6 +2097,145 @@ Your output must be:
         await hydrate();
     }
 
+    async function createAgent(input: {
+        description?: string | null;
+        mode?: AgentConfig["mode"];
+        modelModelId?: string | null;
+        modelProviderId?: string | null;
+        name: string;
+        prompt?: string | null;
+        sourceMarkdown?: string | null;
+        temperature?: number | null;
+        toolPermissions?: AgentConfig["toolPermissions"];
+    }) {
+        const name = normalizeAgentName(input.name);
+        const existing =
+            await repositoriesRef.current.agentRepository.getByName(name);
+
+        if (existing) {
+            throw new Error(`An agent named "${name}" already exists.`);
+        }
+
+        if (isNativeAgentId(name)) {
+            throw new Error(`"${name}" is reserved by a built-in agent.`);
+        }
+
+        const agent = await repositoriesRef.current.agentRepository.create({
+            ...input,
+            name,
+            prompt: input.prompt?.trim() || null,
+        });
+        await hydrate();
+        return agent;
+    }
+
+    async function updateAgent(
+        agentId: string,
+        input: {
+            description?: string | null;
+            enabled?: boolean;
+            hidden?: boolean;
+            mode?: AgentConfig["mode"];
+            modelModelId?: string | null;
+            modelProviderId?: string | null;
+            name?: string;
+            prompt?: string | null;
+            sourceMarkdown?: string | null;
+            temperature?: number | null;
+            toolPermissions?: AgentConfig["toolPermissions"];
+        },
+    ) {
+        if (input.name !== undefined) {
+            const name = normalizeAgentName(input.name);
+            const existing =
+                await repositoriesRef.current.agentRepository.getByName(name);
+
+            if (existing && existing.id !== agentId) {
+                throw new Error(`An agent named "${name}" already exists.`);
+            }
+
+            input = { ...input, name };
+        }
+
+        await repositoriesRef.current.agentRepository.update(agentId, input);
+        await hydrate();
+    }
+
+    async function deleteAgent(agentId: string) {
+        await repositoriesRef.current.agentRepository.delete(agentId);
+        await hydrate();
+    }
+
+    async function importAgentMarkdown(input: {
+        markdown: string;
+        replaceById?: string | null;
+    }) {
+        const parsed = parseAgentMarkdown(input.markdown);
+        let agent: AgentConfig;
+
+        if (input.replaceById) {
+            await repositoriesRef.current.agentRepository.update(
+                input.replaceById,
+                {
+                    description: parsed.description,
+                    mode: parsed.mode,
+                    modelModelId: parsed.modelModelId,
+                    modelProviderId: parsed.modelProviderId,
+                    name: normalizeAgentName(parsed.name),
+                    prompt: parsed.prompt,
+                    sourceMarkdown: parsed.sourceMarkdown,
+                    temperature: parsed.temperature,
+                    toolPermissions: parsed.toolPermissions,
+                },
+            );
+            const replaced =
+                await repositoriesRef.current.agentRepository.getById(
+                    input.replaceById,
+                );
+
+            if (!replaced) {
+                throw new Error(`Agent not found: ${input.replaceById}`);
+            }
+
+            agent = replaced;
+        } else {
+            const name = normalizeAgentName(parsed.name);
+            const existing =
+                await repositoriesRef.current.agentRepository.getByName(name);
+
+            if (existing || isNativeAgentId(name)) {
+                throw new Error(`An agent named "${name}" already exists.`);
+            }
+
+            agent = await repositoriesRef.current.agentRepository.create({
+                description: parsed.description,
+                mode: parsed.mode,
+                modelModelId: parsed.modelModelId,
+                modelProviderId: parsed.modelProviderId,
+                name,
+                prompt: parsed.prompt,
+                sourceMarkdown: parsed.sourceMarkdown,
+                temperature: parsed.temperature,
+                toolPermissions: parsed.toolPermissions,
+            });
+        }
+
+        await hydrate();
+        return agent;
+    }
+
+    function exportAgentMarkdown(agentId: string) {
+        const agent = snapshotRef.current.agents.find(
+            (item) => item.id === agentId,
+        );
+
+        if (!agent) {
+            throw new Error(`Agent not found: ${agentId}`);
+        }
+
+        return serializeAgentToMarkdown(agent);
+    }
+
     function setOpenAIOAuthEmailInSnapshot(email: string | null) {
         setSnapshot((current) => {
             const providers = current.resolvedConfig.providers.map((provider) =>
@@ -1987,6 +2303,7 @@ Your output must be:
         const conversation: Conversation = {
             archivedAt: null,
             createdAt: now,
+            agentId: null,
             externalFolderSession: null,
             id: Crypto.randomUUID(),
             modelId: currentModel?.modelId ?? null,
@@ -2300,6 +2617,50 @@ Your output must be:
         },
         [],
     );
+    const setConversationAgent = useCallback(
+        async (conversationId: string, agentIdOrName: string | null) => {
+            const target = snapshotRef.current.conversations.find(
+                (conversation) => conversation.id === conversationId,
+            );
+
+            if (!target) {
+                return;
+            }
+
+            const agent = resolveConversationAgent(
+                snapshotRef.current,
+                agentIdOrName ?? target.agentId,
+            );
+
+            await ensureConversationPersisted(target);
+
+            await repositoriesRef.current.conversationRepository.updateMetadata(
+                conversationId,
+                { agentId: agent.id },
+            );
+
+            const nextAgentId = agent.id;
+
+            setSnapshot((current) => ({
+                ...current,
+                conversations: current.conversations.map((conversation) =>
+                    conversation.id === conversationId
+                        ? { ...conversation, agentId: nextAgentId }
+                        : conversation,
+                ),
+                currentConversation:
+                    current.currentConversation?.id === conversationId
+                        ? { ...current.currentConversation, agentId: nextAgentId }
+                        : current.currentConversation,
+                currentSelectedAgentId:
+                    current.currentConversation?.id === conversationId
+                        ? nextAgentId
+                        : current.currentSelectedAgentId,
+            }));
+        },
+        [ensureConversationPersisted],
+    );
+
 
     const setCurrentSelectedFileIds = useCallback(
         async (selectedFileIds: string[]) => {
@@ -2547,6 +2908,9 @@ Your output must be:
                 onSkillsChange: () => {
                     hydrate().catch(() => {});
                 },
+                onAgentsChange: () => {
+                    hydrate().catch(() => {});
+                },
                 retryRun: (retryRunId, delayMs) => {
                     setTimeout(() => {
                         executeAgentRun(retryRunId).catch(() => {});
@@ -2555,6 +2919,8 @@ Your output must be:
                 shouldKeepBackgroundAgentAlive: () =>
                     runRegistryRef.current.hasActiveRuns(),
                 refreshScheduler,
+                spawnSubagent: (task) =>
+                    executeSubagentTask(deps, task),
             };
 
             await executeClaimedAgentRun(runId, deps);
@@ -2659,8 +3025,8 @@ Your output must be:
                 createExecutionTimelineEvent({
                     createdAt: timestamp,
                     detail: model
-                        ? `${model.providerLabel} Â· ${model.label}`
-                        : `${run.providerId} Â· ${run.modelId}`,
+                        ? `${model.providerLabel} Ã‚Â· ${model.label}`
+                        : `${run.providerId} Ã‚Â· ${run.modelId}`,
                     kind: "run",
                     status: "pending",
                     title: "Run queued",
@@ -2894,9 +3260,31 @@ Your output must be:
             failSend("No active model available. Configure a provider first.");
         }
 
-        const model =
+        const conversationAgent = resolveConversationAgent(
+            snapshotRef.current,
+            conversation.agentId,
+        );
+        let model =
             currentModel ??
             failSend("No active model available. Configure a provider first.");
+
+        if (conversationAgent.modelProviderId && conversationAgent.modelModelId) {
+            const overrideModel =
+                snapshotRef.current.resolvedConfig.availableModels.find(
+                    (item) =>
+                        item.providerId ===
+                            conversationAgent.modelProviderId &&
+                        item.modelId === conversationAgent.modelModelId,
+                );
+
+            if (!overrideModel) {
+                failSend(
+                    `Agent "${conversationAgent.name}" is configured to use ${conversationAgent.modelProviderId}/${conversationAgent.modelModelId}, which is unavailable. Enable that provider or pick a different agent.`,
+                );
+            } else {
+                model = overrideModel;
+            }
+        }
 
         const provider = snapshotRef.current.resolvedConfig.providers.find(
             (item) => item.id === model.providerId,
@@ -2994,7 +3382,7 @@ Your output must be:
             appliedSkillIds,
             executionTimeline: [
                 createExecutionTimelineEvent({
-                    detail: `${model.providerLabel} Â· ${model.label}`,
+                    detail: `${model.providerLabel} Ã‚Â· ${model.label}`,
                     kind: "run",
                     status: "pending",
                     title: "Run queued",
@@ -3018,6 +3406,7 @@ Your output must be:
         };
         const optimisticAgentRun: AgentRun = {
             agentMode: conversation.agentMode,
+            agentId: conversation.agentId,
             assistantMessageId,
             autoApprove: false,
             completedAt: null,
@@ -3130,6 +3519,7 @@ Your output must be:
                 status: "streaming",
             });
             agentRun = await repositories.agentRunRepository.create({
+                agentId: conversation.agentId,
                 agentMode: conversation.agentMode,
                 assistantMessageId: assistantMessage.id,
                 conversationId: conversation.id,
@@ -3155,7 +3545,7 @@ Your output must be:
                 appliedSkillIds,
                 executionTimeline: [
                     createExecutionTimelineEvent({
-                        detail: `${model.providerLabel} Â· ${model.label}`,
+                        detail: `${model.providerLabel} Ã‚Â· ${model.label}`,
                         kind: "run",
                         status: "pending",
                         title: "Run queued",
@@ -3227,6 +3617,12 @@ Your output must be:
             value={{
                 resolveNotificationApproval,
                 updateNotificationSettings,
+                agents: snapshot.agents,
+                createAgent,
+                updateAgent,
+                deleteAgent,
+                importAgentMarkdown,
+                exportAgentMarkdown,
                 updateCodingSettings,
                 approvePendingToolApproval: () => {
                     if (pendingToolApproval) {
@@ -3325,6 +3721,12 @@ Your output must be:
                 agentMode:
                     snapshot.currentConversation?.agentMode ?? "build",
                 setAgentMode,
+                currentSelectedAgentId: snapshot.currentSelectedAgentId,
+                conversationAgentName: resolveConversationAgent(
+                    snapshot,
+                    snapshot.currentSelectedAgentId,
+                ).name,
+                setConversationAgent,
                 setCurrentSelectedFileIds,
                 setCurrentSelectedMcpServerIds,
                 setCurrentSelectedSkillIds,
@@ -3341,6 +3743,7 @@ Your output must be:
                 updateSchedule,
                 updateSchedulingEnabled,
                 updateSkill,
+                addSkillFiles,
                 updateToolApprovalMode,
                 updateThemeMode,
                 updateMaxToolSteps,
@@ -3443,12 +3846,19 @@ export function useConfig() {
         updateMemoryEnabled: context.updateMemoryEnabled,
         updateSavedPrompt: context.updateSavedPrompt,
         updateSkill: context.updateSkill,
+        addSkillFiles: context.addSkillFiles,
         updateToolApprovalMode: context.updateToolApprovalMode,
         updateThemeMode: context.updateThemeMode,
         notificationSettings: context.settings.notificationSettings,
         updateNotificationSettings: context.updateNotificationSettings,
         codingSettings: context.settings.codingSettings,
         updateCodingSettings: context.updateCodingSettings,
+        agents: context.agents,
+        createAgent: context.createAgent,
+        updateAgent: context.updateAgent,
+        deleteAgent: context.deleteAgent,
+        importAgentMarkdown: context.importAgentMarkdown,
+        exportAgentMarkdown: context.exportAgentMarkdown,
         updateMaxToolSteps: context.updateMaxToolSteps,
         maxToolSteps: context.settings.maxToolSteps,
         updateProvider: context.updateProvider,
@@ -3511,6 +3921,10 @@ export function useChat() {
         setReasoningEffort: context.setReasoningEffort,
         agentMode: context.agentMode,
         setAgentMode: context.setAgentMode,
+        agents: context.agents,
+        currentSelectedAgentId: context.currentSelectedAgentId,
+        conversationAgentName: context.conversationAgentName,
+        setConversationAgent: context.setConversationAgent,
         setCurrentSelectedFileIds: context.setCurrentSelectedFileIds,
         setCurrentSelectedMcpServerIds: context.setCurrentSelectedMcpServerIds,
         setCurrentSelectedSkillIds: context.setCurrentSelectedSkillIds,

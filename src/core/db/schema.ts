@@ -1,8 +1,10 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 import type {
   AgentMode,
   AgentRunStatus,
+  AgentToolPermissions,
+  AgentVisibilityMode,
   ExternalFolderSession,
   FileContextSource,
   MessageMetadata,
@@ -31,6 +33,7 @@ export const conversations = sqliteTable(
       .notNull()
       .default("medium"),
     agentMode: text("agent_mode").$type<AgentMode>().notNull().default("build"),
+    agentId: text("agent_id"),
     selectedFileIds: text("selected_file_ids_json", { mode: "json" })
       .$type<string[]>()
       .notNull()
@@ -106,6 +109,7 @@ export const agentRuns = sqliteTable(
     maxRetries: integer("max_retries").notNull().default(3),
     lastRetryAt: text("last_retry_at"),
     agentMode: text("agent_mode").$type<AgentMode>().notNull().default("build"),
+    agentId: text("agent_id"),
     autoApprove: integer("auto_approve", { mode: "boolean" })
       .notNull()
       .default(false),
@@ -116,6 +120,53 @@ export const agentRuns = sqliteTable(
       table.updatedAt,
     ),
     index("idx_agent_runs_status_updated_at").on(table.status, table.updatedAt),
+  ],
+);
+
+export const skillFiles = sqliteTable(
+  "skill_files",
+  {
+    id: text("id").primaryKey().notNull(),
+    skillId: text("skill_id")
+      .notNull()
+      .references(() => skills.id, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    content: text("content").notNull(),
+    mimeType: text("mime_type"),
+    size: integer("size"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("skill_files_skill_id_path_unique").on(table.skillId, table.path),
+    index("idx_skill_files_skill_id").on(table.skillId),
+  ],
+);
+
+export const agents = sqliteTable(
+  "agents",
+  {
+    id: text("id").primaryKey().notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    prompt: text("prompt"),
+    mode: text("mode").$type<AgentVisibilityMode>().notNull().default("all"),
+    modelProviderId: text("model_provider_id"),
+    modelModelId: text("model_model_id"),
+    temperature: real("temperature"),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    hidden: integer("hidden", { mode: "boolean" }).notNull().default(false),
+    sourceMarkdown: text("source_markdown"),
+    toolPermissions: text("tool_permissions_json", { mode: "json" })
+      .$type<AgentToolPermissions>()
+      .notNull()
+      .default({}),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("agents_name_unique").on(table.name),
+    index("idx_agents_updated_at").on(table.updatedAt),
   ],
 );
 
@@ -262,6 +313,7 @@ export const schedules = sqliteTable(
     externalFolderSession: text("external_folder_session_json", {
       mode: "json",
     }).$type<ExternalFolderSession | null>(),
+    agentId: text("agent_id"),
     lastRunAt: text("last_run_at"),
     nextRunAt: text("next_run_at"),
     createdAt: text("created_at").notNull(),
@@ -343,6 +395,7 @@ export const codingCheckpoints = sqliteTable(
 
 export const schema = {
   agentRuns,
+  agents,
   appSettings,
   codingCheckpoints,
   conversations,
@@ -355,5 +408,6 @@ export const schema = {
   scheduleRuns,
   schedules,
   skills,
+  skillFiles,
   workspaceFiles,
 };

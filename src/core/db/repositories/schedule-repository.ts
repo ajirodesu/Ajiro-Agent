@@ -22,6 +22,7 @@ export function createScheduleRepository(db: AppDatabase): ScheduleRepository {
         timezone: input.timezone,
         providerId: input.providerId,
         modelId: input.modelId,
+        agentId: input.agentId ?? null,
         autoApprove: input.autoApprove ?? true,
         enabled: input.enabled ?? true,
         conversationId: input.conversationId ?? null,
@@ -80,6 +81,7 @@ export function createScheduleRepository(db: AppDatabase): ScheduleRepository {
           modelId: input.modelId ?? current.modelId,
           autoApprove: input.autoApprove ?? current.autoApprove,
           enabled: input.enabled ?? current.enabled,
+          agentId: input.agentId !== undefined ? input.agentId : current.agentId,
           conversationId:
             input.conversationId !== undefined
               ? input.conversationId

@@ -91,8 +91,10 @@ export const EMPTY_RESOLVED_CONFIG: ResolvedConfig = {
 
 export const EMPTY_SNAPSHOT: AppStateSnapshot = {
     agentRuns: [],
+    agents: [],
     conversations: [],
     currentConversation: null,
+    currentSelectedAgentId: null,
     currentSelectedFileIds: [],
     currentSelectedMcpServerIds: null,
     currentSelectedSkillIds: [],

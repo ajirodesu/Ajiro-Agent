@@ -5,6 +5,7 @@ import type { BuiltInToolKey, SkillConfig } from "@/core/types/app-state";
 export type ParsedSkillMarkdown = {
   autoMatch: boolean;
   description: string | null;
+  files: string[];
   instructions: string;
   matchKeywords: string[];
   name: string;
@@ -18,7 +19,7 @@ export type ParsedSkillMarkdown = {
 const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const MAX_DESCRIPTION_LENGTH = 1024;
 
-const TOOL_ALIAS_TO_BUILT_IN_KEY: Record<string, BuiltInToolKey> = {
+export const TOOL_ALIAS_TO_BUILT_IN_KEY: Record<string, BuiltInToolKey> = {
   askquestion: "question",
   askuserquestion: "question",
   create: "workspaceCreateFile",
@@ -69,6 +70,8 @@ const TOOL_ALIAS_TO_BUILT_IN_KEY: Record<string, BuiltInToolKey> = {
 
 const BUILT_IN_TOOL_KEY_TO_SKILL_NAME: Record<BuiltInToolKey, string> = {
   downloadFile: "DownloadFile",
+  exec: "Exec",
+  git: "Git",
   folderCreateDirectory: "FolderCreateDirectory",
   folderCreateFile: "FolderCreateFile",
   folderDeleteEntry: "FolderDeleteEntry",
@@ -209,6 +212,77 @@ function parseBoolean(value: unknown) {
   return undefined;
 }
 
+const FILE_EXTENSION_PATTERN = /\.[a-z0-9]{1,10}$/i;
+
+function normalizeFileRef(raw: string): string | null {
+  const cleaned = raw.trim().replace(/[?#].*$/, "");
+
+  if (!cleaned || cleaned.startsWith("/")) {
+    return null;
+  }
+
+  if (/^(https?:|mailto:|tel:|data:)/i.test(cleaned)) {
+    return null;
+  }
+
+  if (!FILE_EXTENSION_PATTERN.test(cleaned)) {
+    return null;
+  }
+
+  const segments = cleaned.split("/");
+  const safe = segments.every(
+    (segment) => segment.length > 0 && segment !== "." && segment !== "..",
+  );
+
+  if (!safe) {
+    return null;
+  }
+
+  return segments.join("/");
+}
+
+function extractReferencedFiles(
+  markdown: string,
+  frontmatterFiles: string[],
+): string[] {
+  const refs = new Set<string>();
+  const body = markdown;
+
+  const linkPattern = /!?\[[^\]]*\]\(([^)\s]+)\)/g;
+  let linkMatch: RegExpExecArray | null;
+
+  while ((linkMatch = linkPattern.exec(body)) !== null) {
+    const ref = normalizeFileRef(linkMatch[1]);
+
+    if (ref) {
+      refs.add(ref);
+    }
+  }
+
+  // Also honor references spelled as plain relative paths like `scripts/foo.py`
+  // or `references/x.md` that appear in code blocks / prose.
+  const pathPattern = /(?:^|[^a-zA-Z0-9_])((?:scripts|references|assets|src|resources)\/[a-zA-Z0-9_.\-/]+\.(?:md|markdown|py|ts|tsx|js|jsx|json|sh|txt|yaml|yml|toml|csv))/gim;
+  let pathMatch: RegExpExecArray | null;
+
+  while ((pathMatch = pathPattern.exec(body)) !== null) {
+    const ref = normalizeFileRef(pathMatch[1]);
+
+    if (ref) {
+      refs.add(ref);
+    }
+  }
+
+  for (const ref of frontmatterFiles) {
+    const normalized = normalizeFileRef(ref);
+
+    if (normalized) {
+      refs.add(normalized);
+    }
+  }
+
+  return Array.from(refs);
+}
+
 export function parseSkillMarkdown(markdown: string): ParsedSkillMarkdown {
   const sourceMarkdown = markdown.trim();
   const extracted = extractFrontmatter(sourceMarkdown);
@@ -274,6 +348,10 @@ export function parseSkillMarkdown(markdown: string): ParsedSkillMarkdown {
   return {
     autoMatch: disableModelInvocation === undefined ? true : !disableModelInvocation,
     description,
+    files: extractReferencedFiles(
+      sourceMarkdown,
+      normalizeList(frontmatter.files).concat(normalizeList(frontmatter.resources)),
+    ),
     instructions,
     matchKeywords: keywords,
     name: rawName,

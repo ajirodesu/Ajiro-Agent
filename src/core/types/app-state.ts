@@ -27,6 +27,11 @@ export type ModelTransport =
   | "openaiResponses";
 export type ToolApprovalMode = "ask" | "auto";
 export type AgentMode = "plan" | "build";
+export type AgentVisibilityMode = "primary" | "subagent" | "all";
+export type AgentToolPermissions = {
+  builtInTools?: Partial<Record<BuiltInToolKey, boolean>>;
+  mcpServers?: Record<string, boolean>;
+};
 export type ThemeMode = "system" | "light" | "dark";
 export type McpServerTransport = "http" | "sse";
 export type McpServerAuthMode = "none" | "headers" | "oauth";
@@ -63,22 +68,50 @@ export type BuiltInToolKey =
   | "folderGrep"
   | "folderGlob"
   | "folderEdit"
+  | "exec"
+  | "git"
   | "todos"
   | "question"
   | "skill"
   | "schedules";
 export type BuiltInToolSettings = Record<BuiltInToolKey, boolean>;
+export type SkillFile = {
+  id: string;
+  path: string;
+  content: string;
+  mimeType: string | null;
+  size: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
 export type SkillConfig = {
   id: string;
   title: string;
   description: string | null;
   instructions: string;
   sourceMarkdown: string | null;
+  skillFiles: SkillFile[];
   enabled: boolean;
   autoMatch: boolean;
   matchKeywords: string[];
   recommendedMcpServerIds: string[];
   recommendedBuiltInToolKeys: BuiltInToolKey[];
+  createdAt: string;
+  updatedAt: string;
+};
+export type AgentConfig = {
+  id: string;
+  name: string;
+  description: string | null;
+  prompt: string | null;
+  mode: AgentVisibilityMode;
+  modelProviderId: string | null;
+  modelModelId: string | null;
+  temperature: number | null;
+  enabled: boolean;
+  hidden: boolean;
+  sourceMarkdown: string | null;
+  toolPermissions: AgentToolPermissions;
   createdAt: string;
   updatedAt: string;
 };
@@ -171,12 +204,18 @@ export type GeneratedImageAttachment = {
 };
 
 export type ToolExecutionRecord = {
+  createdAt: string;
+  id?: string;
   toolName: string;
-  status: "completed" | "failed" | "pending";
+  status: "completed" | "failed" | "pending" | "running";
   inputSummary: string;
   outputSummary: string | null;
   error: string | null;
-  createdAt: string;
+  termux?: {
+    command: string;
+    output: string | null;
+    taskId: string | null;
+  };
 };
 
 export type PromptArtifact = {
@@ -234,6 +273,7 @@ export type Schedule = {
   timezone: string;
   providerId: string;
   modelId: string;
+  agentId: string | null;
   autoApprove: boolean;
   enabled: boolean;
   conversationId: string | null;
@@ -262,6 +302,7 @@ export type ScheduleRun = {
 };
 
 export type MessageMetadata = {
+  agentName?: string | null;
   appliedSkillIds?: string[];
   executionTimeline?: ExecutionTimelineEvent[];
   externalFolderDisplayName?: string | null;
@@ -298,6 +339,7 @@ export type AgentRun = {
   maxRetries: number;
   lastRetryAt: string | null;
   agentMode: AgentMode;
+  agentId: string | null;
   autoApprove: boolean;
 };
 
@@ -361,6 +403,7 @@ export type Conversation = {
   modelId: string | null;
   reasoningEffort: ReasoningEffort;
   agentMode: AgentMode;
+  agentId: string | null;
   selectedFileIds: string[];
   selectedMcpServerIds: string[] | null;
   selectedSkillIds: string[];
@@ -473,8 +516,10 @@ export type ResolvedConfig = {
 
 export type AppStateSnapshot = {
   agentRuns: AgentRun[];
+  agents: AgentConfig[];
   conversations: Conversation[];
   currentConversation: Conversation | null;
+  currentSelectedAgentId: string | null;
   currentSelectedFileIds: string[];
   currentSelectedMcpServerIds: string[] | null;
   currentSelectedSkillIds: string[];

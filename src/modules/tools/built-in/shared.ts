@@ -9,17 +9,21 @@ export function summarizeValue(value: unknown) {
 
 export function createRecord(input: {
   error?: string | null;
+  id?: string;
   inputSummary: string;
   outputSummary?: string | null;
   status: ToolExecutionRecord["status"];
+  termux?: ToolExecutionRecord["termux"];
   toolName: string;
 }) {
   return {
+    ...(input.id ? { id: input.id } : {}),
     toolName: input.toolName,
     status: input.status,
     inputSummary: input.inputSummary,
     outputSummary: input.outputSummary ?? null,
     error: input.error ?? null,
+    ...(input.termux ? { termux: input.termux } : {}),
     createdAt: new Date().toISOString(),
   } satisfies ToolExecutionRecord;
 }

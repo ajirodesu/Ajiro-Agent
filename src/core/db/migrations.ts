@@ -2,7 +2,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 
 import { serializeSkillToMarkdown } from "@/modules/skills/skill-markdown";
 
-const DATABASE_VERSION = 23;
+const DATABASE_VERSION = 25;
 
 const CORE_SCHEMA_REPAIR_SQL = `
   PRAGMA journal_mode = WAL;
@@ -75,6 +75,26 @@ const CORE_SCHEMA_REPAIR_SQL = `
 
   CREATE INDEX IF NOT EXISTS idx_schedule_runs_schedule_started_at
   ON schedule_runs(schedule_id, started_at);
+
+  CREATE TABLE IF NOT EXISTS agents (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    prompt TEXT,
+    mode TEXT NOT NULL DEFAULT 'all',
+    model_provider_id TEXT,
+    model_model_id TEXT,
+    temperature REAL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    hidden INTEGER NOT NULL DEFAULT 0,
+    source_markdown TEXT,
+    tool_permissions_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS agents_name_unique ON agents(name);
+  CREATE INDEX IF NOT EXISTS idx_agents_updated_at ON agents(updated_at);
 `;
 
 export async function migrateAppDatabase(db: SQLiteDatabase) {
@@ -792,6 +812,87 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
     `);
 
     currentVersion = 23;
+  }
+
+  if (currentVersion === 23) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS agents (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        prompt TEXT,
+        mode TEXT NOT NULL DEFAULT 'all',
+        model_provider_id TEXT,
+        model_model_id TEXT,
+        temperature REAL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        hidden INTEGER NOT NULL DEFAULT 0,
+        source_markdown TEXT,
+        tool_permissions_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS agents_name_unique ON agents(name);
+      CREATE INDEX IF NOT EXISTS idx_agents_updated_at ON agents(updated_at);
+    `);
+
+    const conversationColumns = await db.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(conversations)",
+    );
+
+    if (!conversationColumns.some((column) => column.name === "agent_id")) {
+      await db.execAsync(`
+        ALTER TABLE conversations ADD COLUMN agent_id TEXT;
+        UPDATE conversations
+        SET agent_id = CASE WHEN agent_mode = 'plan' THEN 'plan' ELSE 'build' END;
+      `);
+    }
+
+    const runColumns = await db.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(agent_runs)",
+    );
+
+    if (!runColumns.some((column) => column.name === "agent_id")) {
+      await db.execAsync(`
+        ALTER TABLE agent_runs ADD COLUMN agent_id TEXT;
+      `);
+    }
+
+    const scheduleColumns = await db.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(schedules)",
+    );
+
+    if (!scheduleColumns.some((column) => column.name === "agent_id")) {
+      await db.execAsync(`
+        ALTER TABLE schedules ADD COLUMN agent_id TEXT;
+      `);
+    }
+
+    currentVersion = 24;
+  }
+
+  if (currentVersion === 24) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS skill_files (
+        id TEXT PRIMARY KEY NOT NULL,
+        skill_id TEXT NOT NULL,
+        path TEXT NOT NULL,
+        content TEXT NOT NULL,
+        mime_type TEXT,
+        size INTEGER,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS skill_files_skill_id_path_unique
+      ON skill_files(skill_id, path);
+      CREATE INDEX IF NOT EXISTS idx_skill_files_skill_id
+      ON skill_files(skill_id);
+    `);
+
+    currentVersion = 25;
   }
 
   await db.execAsync(`PRAGMA user_version = ${currentVersion}`);

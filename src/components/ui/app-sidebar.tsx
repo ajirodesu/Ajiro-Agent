@@ -57,6 +57,7 @@ import {
   PinOff,
   Search,
   SquarePen,
+  TerminalSquare,
   Trash2,
   X,
 } from "lucide-react-native";
@@ -83,6 +84,7 @@ const NAV_ITEMS: { label: string; route: string; icon: typeof Library }[] = [
   { label: "Projects", route: "/settings/coding", icon: FolderOpen },
   { label: "Scheduled", route: "/settings/jobs", icon: Clock },
   { label: "Plugins", route: "/settings/mcp", icon: AtSign },
+  { label: "Terminal", route: "/terminal", icon: TerminalSquare },
 ];
 
 export function AppSidebar() {

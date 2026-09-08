@@ -5,6 +5,7 @@ import type { schema } from "@/core/db/schema";
 import type { MemoryStore } from "@/modules/memory/types";
 import type { CheckpointRepository } from "@/core/db/repositories/checkpoint-repository";
 import type {
+  AgentConfig,
   AgentMode,
   AgentRun,
   AgentRunStatus,
@@ -35,10 +36,48 @@ import type {
   WorkspaceFileSourceKind,
 } from "@/core/types/app-state";
 
+export interface AgentRepository {
+  create(input: {
+    description?: string | null;
+    enabled?: boolean;
+    hidden?: boolean;
+    id?: string;
+    mode?: AgentConfig["mode"];
+    modelModelId?: string | null;
+    modelProviderId?: string | null;
+    name: string;
+    prompt?: string | null;
+    sourceMarkdown?: string | null;
+    temperature?: number | null;
+    toolPermissions?: AgentConfig["toolPermissions"];
+  }): Promise<AgentConfig>;
+  delete(id: string): Promise<void>;
+  getById(id: string): Promise<AgentConfig | null>;
+  getByName(name: string): Promise<AgentConfig | null>;
+  list(): Promise<AgentConfig[]>;
+  update(
+    id: string,
+    input: {
+      description?: string | null;
+      enabled?: boolean;
+      hidden?: boolean;
+      mode?: AgentConfig["mode"];
+      modelModelId?: string | null;
+      modelProviderId?: string | null;
+      name?: string;
+      prompt?: string | null;
+      sourceMarkdown?: string | null;
+      temperature?: number | null;
+      toolPermissions?: AgentConfig["toolPermissions"];
+    },
+  ): Promise<void>;
+}
+
 export interface ConversationRepository {
   deleteById(id: string): Promise<void>;
   create(input: {
     id?: string;
+    agentId?: string | null;
     modelId?: string | null;
     pinnedAt?: string | null;
     providerId?: string | null;
@@ -50,6 +89,7 @@ export interface ConversationRepository {
     id: string,
     input: {
       agentMode?: AgentMode;
+      agentId?: string | null;
       externalFolderSession?: ExternalFolderSession | null;
       modelId?: string | null;
       pinnedAt?: string | null;
@@ -91,6 +131,7 @@ export interface MessageRepository {
 export interface AgentRunRepository {
   create(input: {
     agentMode?: AgentMode;
+    agentId?: string | null;
     assistantMessageId: string;
     autoApprove?: boolean;
     completedAt?: string | null;
@@ -119,6 +160,7 @@ export interface AgentRunRepository {
     id: string,
     input: {
   agentMode?: AgentMode;
+  agentId?: string | null;
   completedAt?: string | null;
   externalFolderSession?: ExternalFolderSession | null;
   fileContextSource?: FileContextSource | null;
@@ -222,6 +264,7 @@ export interface SkillRepository {
     matchKeywords?: string[];
     recommendedBuiltInToolKeys?: SkillConfig["recommendedBuiltInToolKeys"];
     recommendedMcpServerIds?: string[];
+    skillFiles?: Omit<SkillConfig["skillFiles"][number], "createdAt" | "updatedAt" | "id">[];
     sourceMarkdown?: string | null;
     title: string;
   }): Promise<SkillConfig>;
@@ -238,10 +281,15 @@ export interface SkillRepository {
       matchKeywords?: string[];
       recommendedBuiltInToolKeys?: SkillConfig["recommendedBuiltInToolKeys"];
       recommendedMcpServerIds?: string[];
+      skillFiles?: Omit<SkillConfig["skillFiles"][number], "createdAt" | "updatedAt" | "id">[];
       sourceMarkdown?: string | null;
       title?: string;
     },
   ): Promise<void>;
+  listFilesForSkill(
+    skillId: string,
+  ): Promise<SkillConfig["skillFiles"]>;
+  deleteFilesForSkill(skillId: string): Promise<void>;
 }
 
 export interface SavedPromptRepository {
@@ -264,6 +312,7 @@ export interface SavedPromptRepository {
 
 export interface ScheduleRepository {
   create(input: {
+    agentId?: string | null;
     autoApprove?: boolean;
     conversationId?: string | null;
     enabled?: boolean;
@@ -285,6 +334,7 @@ export interface ScheduleRepository {
   update(
     id: string,
     input: {
+      agentId?: string | null;
       autoApprove?: boolean;
       conversationId?: string | null;
       enabled?: boolean;
@@ -379,6 +429,7 @@ export interface ConfigRepository {
 }
 
 export type Repositories = {
+  agentRepository: AgentRepository;
   agentRunRepository: AgentRunRepository;
   checkpointRepository: CheckpointRepository;
   configRepository: ConfigRepository;

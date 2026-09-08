@@ -46,6 +46,7 @@ export default function SettingsScreen() {
   const { error, hydrating, ready } = useAppState();
   const {
     activeModels,
+    agents,
     currentModel,
     databaseMode,
     databaseUrl,
@@ -184,6 +185,14 @@ export default function SettingsScreen() {
               ? "Enabled"
               : "Off"
           }
+        />
+        <Separator />
+        <SettingsLinkRow
+          label="Agents"
+          onPress={() => {
+            router.push("/settings/agents" as never);
+          }}
+          value={`${agents.length} custom`}
         />
         <Separator />
         <SettingsLinkRow

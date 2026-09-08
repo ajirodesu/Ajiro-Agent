@@ -20,6 +20,8 @@ export const DEFAULT_BUILT_IN_TOOL_SETTINGS: BuiltInToolSettings = {
   folderGrep: true,
   folderGlob: true,
   folderEdit: true,
+  exec: true,
+  git: true,
   todos: true,
   question: true,
   skill: true,
@@ -100,6 +102,10 @@ export const ALWAYS_ENABLED_BUILT_IN_TOOLS: BuiltInToolKey[] = [
   "skill",
   "schedules",
 ];
+
+export const ALL_BUILT_IN_TOOL_KEYS = Object.keys(
+  DEFAULT_BUILT_IN_TOOL_SETTINGS,
+) as BuiltInToolKey[];
 
 export function normalizeBuiltInToolSettings(
   input?: Partial<BuiltInToolSettings> | null,

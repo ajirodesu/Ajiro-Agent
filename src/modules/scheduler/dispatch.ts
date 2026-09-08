@@ -13,7 +13,7 @@ import type {
   Schedule,
   StoredMessage,
 } from "@/core/types/app-state";
-import { executeClaimedAgentRun, type AgentRunDeps } from "@/providers/app-state/agent-run";
+import { executeClaimedAgentRun, executeSubagentTask, type AgentRunDeps } from "@/providers/app-state/agent-run";
 import { resolveConfig } from "@/providers/app-state/config-resolution";
 import { buildAssistantMetadata } from "@/providers/app-state/helpers";
 import type { RunUiPublisher } from "@/providers/app-state/run-ui-publisher";
@@ -85,6 +85,7 @@ export async function createScheduledRun(
   });
   const agentRun = await repositories.agentRunRepository.create({
     agentMode: "build",
+    agentId: currentSchedule.agentId ?? null,
     assistantMessageId: assistantMessage.id,
     autoApprove: currentSchedule.autoApprove,
     conversationId: conversation.id,
@@ -147,6 +148,7 @@ export async function buildHeadlessSnapshot(
   const conversations = await repositories.conversationRepository.list();
   const currentConversation = conversations[0] ?? null;
   const agentRuns = await repositories.agentRunRepository.list();
+  const agents = await repositories.agentRepository.list();
   const messages = currentConversation
     ? await repositories.messageRepository.listByConversation(currentConversation.id)
     : [];
@@ -167,8 +169,10 @@ export async function buildHeadlessSnapshot(
 
   return {
     agentRuns,
+    agents,
     conversations,
     currentConversation,
+    currentSelectedAgentId: currentConversation?.agentId ?? null,
     currentSelectedFileIds: currentConversation?.selectedFileIds ?? [],
     currentSelectedMcpServerIds:
       currentConversation?.selectedMcpServerIds ?? null,
@@ -216,6 +220,7 @@ export function buildHeadlessAgentRunDeps(input: {
       }
     },
     onSkillsChange: () => {},
+    onAgentsChange: () => {},
     ui: createHeadlessRunPublisher(),
     retryRun: (runId, delayMs) => {
       setTimeout(() => {
@@ -224,6 +229,7 @@ export function buildHeadlessAgentRunDeps(input: {
     },
     shouldKeepBackgroundAgentAlive: () => runRegistry.hasActiveRuns(),
     refreshScheduler: () => {},
+    spawnSubagent: (task) => executeSubagentTask(deps, task),
   };
 
   return deps;

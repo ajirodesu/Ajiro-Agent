@@ -28,6 +28,7 @@ describe("skill-markdown", () => {
       matchKeywords: ["git"],
       recommendedMcpServerIds: [],
       recommendedBuiltInToolKeys: [],
+      skillFiles: [],
       createdAt: "",
       updatedAt: "",
     };

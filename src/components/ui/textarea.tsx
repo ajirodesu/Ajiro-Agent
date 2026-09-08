@@ -61,7 +61,9 @@ export const Textarea = forwardRef<TextInput, TextareaProps>(
         selectionColor={theme.backgroundSelected}
         selectionHandleColor={theme.text}
         style={[
-          Platform.OS === 'android' ? { textAlignVertical: 'top' } : null,
+          Platform.OS === 'android' && props.textAlignVertical === undefined
+            ? { textAlignVertical: 'top' }
+            : null,
           style,
         ]}
         {...props}

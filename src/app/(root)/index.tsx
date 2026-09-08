@@ -208,12 +208,18 @@ function logComposerDebug(label: string, data: Record<string, unknown>) {
   console.log(`[Composer:${label}]`, JSON.stringify(data));
 }
 
-/** Pill input geometry: line-count-driven sizing, 10-line max, then scroll. */
-const COMPOSER_LINE_HEIGHT = 20;
-const COMPOSER_VERTICAL_PADDING = 16;
-const COMPOSER_INPUT_MIN_HEIGHT = 52;
-const COMPOSER_INPUT_MAX_HEIGHT =
-  COMPOSER_LINE_HEIGHT * 10 + COMPOSER_VERTICAL_PADDING;
+/**
+ * Pill input geometry (ChatGPT-style 4-state auto-resize):
+ * 1. empty → compact bar (textarea collapses, buttons define the height)
+ * 2. typing → slightly taller single line
+ * 3. wrapping → grows one line at a time (leading-6 = 24px per line)
+ * 4. MAX_LINES reached → locks and the field scrolls internally.
+ */
+const COMPOSER_LINE_HEIGHT = 24;
+const COMPOSER_EMPTY_HEIGHT = 24;
+const COMPOSER_TYPED_MIN_HEIGHT = 40;
+const COMPOSER_MAX_LINES = 10;
+const COMPOSER_INPUT_MAX_HEIGHT = COMPOSER_LINE_HEIGHT * COMPOSER_MAX_LINES + 4;
 
 function useSyncedComposerSelection() {
   const [selection, setSelection] = useState({ end: 0, start: 0 });
@@ -1163,15 +1169,23 @@ const ChatInput = memo(function ChatInput({
     setPrompt("");
   }, [editDraft, editNonce]);
 
-  // Auto-resize: grows one line at a time up to COMPOSER_MAX_LINES, then locks
-  // at max height and the field becomes internally scrollable. Shrinks back
-  // line by line as text is removed. Height changes animate via reanimated.
-  const composerTargetHeight = Math.min(
-    COMPOSER_INPUT_MAX_HEIGHT,
-    Math.max(COMPOSER_INPUT_MIN_HEIGHT, composerContentHeight),
-  );
-  const composerScrollEnabled = composerContentHeight > COMPOSER_INPUT_MAX_HEIGHT;
-  const composerAnimatedHeight = useSharedValue(COMPOSER_INPUT_MIN_HEIGHT);
+  // Auto-resize (4 states): compact when empty, slightly taller on the first
+  // typed line, grows line-by-line while wrapping, then locks at the 10-line
+  // max and scrolls internally. Shrinks back down as text is removed, and all
+  // height changes animate via reanimated — no snapping.
+  const hasComposerText = prompt.trim().length > 0;
+  const composerTargetHeight = !hasComposerText
+    ? COMPOSER_EMPTY_HEIGHT
+    : Math.min(
+        COMPOSER_INPUT_MAX_HEIGHT,
+        Math.max(
+          COMPOSER_TYPED_MIN_HEIGHT,
+          composerContentHeight > 0 ? composerContentHeight : COMPOSER_LINE_HEIGHT,
+        ),
+      );
+  const composerScrollEnabled =
+    hasComposerText && composerContentHeight > COMPOSER_INPUT_MAX_HEIGHT;
+  const composerAnimatedHeight = useSharedValue(COMPOSER_EMPTY_HEIGHT);
 
   useEffect(() => {
     composerAnimatedHeight.value = withTiming(composerTargetHeight, {
@@ -1371,6 +1385,7 @@ const ChatInput = memo(function ChatInput({
 
     sendingRef.current = true;
     setPrompt("");
+    setComposerContentHeight(0);
     KeyboardController.dismiss();
     composerRef.current?.blur();
 
@@ -1951,6 +1966,7 @@ const ChatInput = memo(function ChatInput({
                   selection={composerSelection.selectionProp}
                   selectionColor="#0A84FF"
                   submitBehavior="newline"
+                  textAlignVertical="center"
                   value={prompt}
                 />
               </Animated.View>

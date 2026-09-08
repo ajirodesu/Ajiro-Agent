@@ -57,7 +57,6 @@ import {
   PinOff,
   Search,
   SquarePen,
-  TerminalSquare,
   Trash2,
   X,
 } from "lucide-react-native";
@@ -84,7 +83,6 @@ const NAV_ITEMS: { label: string; route: string; icon: typeof Library }[] = [
   { label: "Projects", route: "/settings/coding", icon: FolderOpen },
   { label: "Scheduled", route: "/settings/jobs", icon: Clock },
   { label: "Plugins", route: "/settings/mcp", icon: AtSign },
-  { label: "Terminal", route: "/terminal", icon: TerminalSquare },
 ];
 
 export function AppSidebar() {
@@ -225,11 +223,14 @@ export function AppSidebar() {
     <>
       <Sidebar>
         <SidebarContent>
-          <SidebarHeader className="min-h-14 flex-row items-center justify-between pb-sp-2">
-            <Text className="font-sans text-[30px] font-bold text-foreground dark:text-foreground-dark">
+          <SidebarHeader className="min-h-14 flex-row items-center justify-between gap-sp-2 pb-sp-2">
+            <Text
+              className="min-w-0 flex-1 font-sans text-[30px] font-bold text-foreground dark:text-foreground-dark"
+              numberOfLines={1}
+            >
               Ajiro Agent
             </Text>
-            <View className="flex-row items-center gap-sp-2">
+            <View className="shrink-0 flex-row items-center gap-sp-2">
               {activeRuns.length > 0 ? (
                 <Pressable
                   accessibilityLabel={`${activeRuns.length} background tasks running`}
@@ -388,9 +389,8 @@ export function AppSidebar() {
         </SidebarContent>
 
         <SidebarFooter
-          className="z-10"
+          className="z-10 bg-sidebar dark:bg-sidebar-dark"
           style={{
-            backgroundColor: "#0D0D0D",
             paddingBottom: 12,
           }}
         >

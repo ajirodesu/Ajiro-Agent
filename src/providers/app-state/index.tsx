@@ -738,23 +738,27 @@ You are a title generator.
 
 <task>
 Generate a brief title that would help the user find this conversation later.
+Base the title on the TOPIC of the conversation — rephrase into a short topic
+label; never copy the user's message text verbatim.
 
 Follow all rules in <rules>
 Use the <examples> so you know what a good title looks like.
 Your output must be:
 - A single line
-- ÃƒÂ¢Ã¢â‚¬Â°Ã‚Â¤50 characters
+- 50 characters or fewer
 - No explanations
 </task>
 
 <rules>
 - Never include tool names in the title
+- Never quote the message verbatim; summarize the topic instead
 - If the user message is short or conversational (e.g. "hello", "lol", "what's up", "hey"), return "New chat"
 </rules>
 
 <examples>
-"write a blog post on x and store in my notion" ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Blog for X
-"checkout x repo on github" ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Explore X Repo
+"write a blog post on x and store in my notion" -> Blog for X
+"checkout x repo on github" -> Explore X Repo
+"my tests keep failing on CI" -> Fix CI Test Failures
 </examples>
 `;
         const fallback = buildConversationTitle(input.firstUserMessage);

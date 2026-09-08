@@ -23,6 +23,17 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.2
+
       - name: Check if app version changed
         id: version
         shell: bash
@@ -30,7 +41,10 @@ jobs:
           CURRENT_VERSION=$(node -p "require('./package.json').version")
 
           if git rev-parse HEAD^ >/dev/null 2>&1; then
-            PREVIOUS_VERSION=$(git show HEAD^:package.json | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+            PREVIOUS_VERSION=$(
+              git show HEAD^:package.json |
+              node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version"
+            )
           else
             PREVIOUS_VERSION=""
           fi
@@ -48,19 +62,6 @@ jobs:
             echo "Version changed. Creating release."
           fi
 
-      - name: Set up pnpm
-        if: steps.version.outputs.changed == 'true'
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.29.2
-
-      - name: Set up Node.js
-        if: steps.version.outputs.changed == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
       - name: Install dependencies
         if: steps.version.outputs.changed == 'true'
         run: pnpm install --frozen-lockfile
@@ -68,6 +69,13 @@ jobs:
       - name: Install EAS CLI
         if: steps.version.outputs.changed == 'true'
         run: npm install -g eas-cli
+
+      - name: Verify Expo authentication
+        if: steps.version.outputs.changed == 'true'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas whoami
 
       - name: Build Android APK
         if: steps.version.outputs.changed == 'true'
@@ -103,9 +111,12 @@ jobs:
 
       - name: Download APK
         if: steps.version.outputs.changed == 'true'
+        shell: bash
         run: |
           curl -fL "$APK_URL" \
-            -o "ajiro-agent-${{ env.VERSION }}.apk"
+            -o "ajiro-agent-${VERSION}.apk"
+
+          test -s "ajiro-agent-${VERSION}.apk"
 
       - name: Publish GitHub Release
         if: steps.version.outputs.changed == 'true'
@@ -115,8 +126,17 @@ jobs:
           name: Ajiro Agent v${{ env.VERSION }}
           files: ajiro-agent-${{ env.VERSION }}.apk
           body_path: .release-notes.md
-          prerelease: ${{ contains(env.VERSION, 'alpha') || contains(env.VERSION, 'beta') || contains(env.VERSION, 'rc') || contains(env.VERSION, 'pre') }}
+          generate_release_notes: true
+          prerelease: >-
+            ${{
+              contains(env.VERSION, 'alpha') ||
+              contains(env.VERSION, 'beta') ||
+              contains(env.VERSION, 'rc') ||
+              contains(env.VERSION, 'pre')
+            }}
 
       - name: Skip release
         if: steps.version.outputs.changed == 'false'
-        run: echo "Version unchanged. APK build and GitHub release skipped."
+        run: |
+          echo "Version unchanged."
+          echo "APK build and GitHub release skipped."

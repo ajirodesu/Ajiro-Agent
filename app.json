@@ -2,14 +2,12 @@
   "expo": {
     "name": "Ajiro Agent",
     "slug": "ajiro-agent",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ajiro-agent",
     "userInterfaceStyle": "automatic",
-
     "owner": "ajirodesu",
-
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.ajirohq.ajiroagent",
@@ -22,7 +20,6 @@
         "LSSupportsOpeningDocumentsInPlace": true
       }
     },
-
     "android": {
       "versionCode": 3,
       "permissions": [
@@ -46,13 +43,11 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.ajirohq.ajiroagent"
     },
-
     "web": {
       "output": "server",
       "bundler": "metro",
       "favicon": "./assets/images/favicon.png"
     },
-
     "plugins": [
       "expo-router",
       [
@@ -83,12 +78,10 @@
         }
       ]
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
-
     "extra": {
       "router": {},
       "eas": {

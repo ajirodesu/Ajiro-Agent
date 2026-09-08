@@ -1,4 +1,3 @@
-```yaml
 name: Android APK Release
 
 on:
@@ -148,4 +147,3 @@ jobs:
         run: |
           echo "Version unchanged."
           echo "APK build and GitHub release skipped."
-```

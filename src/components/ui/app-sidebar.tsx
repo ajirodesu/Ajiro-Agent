@@ -1,5 +1,5 @@
 /**
- * Ajiro Agent sidebar — slide-out navigation drawer.
+ * Ajiro Agent sidebar â€” slide-out navigation drawer.
  * Near-black panel (#0D0D0D-#141414 equivalent via sidebar tokens), scrollable
  * content with sticky bottom bar (Chat / avatar / voice), thin right-edge
  * divider, five primary nav items, Pinned + Recents sections with an optional
@@ -68,7 +68,7 @@ import { ACTIVE_AGENT_RUN_STATUSES } from "@/modules/runtime/run-manager";
 import { useElapsedSeconds } from "@/components/ui/processing-status";
 import { useTheme } from "@/hooks/use-theme";
 
-const ACCENT_BLUE = "#3B82F6";
+const ACCENT_BLUE = "#0A84FF";
 
 /**
  * Primary nav. "Images" and "Projects" map to real app destinations:
@@ -151,13 +151,13 @@ export function AppSidebar() {
             <View className="min-w-0 flex-1 flex-row items-center gap-sp-2">
               {conversation.pinnedAt ? (
                 <MessageSquare
-                  color={theme.text}
-                  size={22}
+                  color={theme.textSecondary}
+                  size={20}
                   strokeWidth={1.75}
                 />
               ) : null}
               <Text
-                className="min-w-0 flex-1 font-sans text-lg text-foreground dark:text-foreground-dark"
+                className="min-w-0 flex-1 font-sans text-base text-[#ECECEC]"
                 numberOfLines={1}
               >
                 {conversation.title}
@@ -225,7 +225,7 @@ export function AppSidebar() {
         <SidebarContent>
           <SidebarHeader className="min-h-14 flex-row items-center justify-between gap-sp-2 pb-sp-2">
             <Text
-              className="min-w-0 flex-1 font-sans text-[30px] font-bold text-foreground dark:text-foreground-dark"
+              className="min-w-0 flex-1 font-sans text-[28px] font-bold text-foreground dark:text-foreground-dark"
               numberOfLines={1}
             >
               Ajiro Agent
@@ -235,12 +235,12 @@ export function AppSidebar() {
                 <Pressable
                   accessibilityLabel={`${activeRuns.length} background tasks running`}
                   accessibilityRole="button"
-                  className="h-14 w-14 items-center justify-center rounded-full"
+                  className="h-10 w-10 items-center justify-center rounded-full"
                   onPress={() => {
                     setTasksOpen((current) => !current);
                   }}
                   style={({ pressed }) => ({
-                    backgroundColor: "#2A2A2A",
+                    backgroundColor: "#1C1C1E",
                     opacity: pressed ? 0.85 : 1,
                   })}
                 >
@@ -264,7 +264,7 @@ export function AppSidebar() {
                   setSearchQuery("");
                 }}
               >
-                <Search color={theme.text} size={24} strokeWidth={1.75} />
+                <Search color={theme.text} size={22} strokeWidth={1.75} />
               </HeaderIconButton>
               <SidebarClose asChild>
                 <HeaderIconButton accessibilityLabel="New chat" onPress={openNewChat}>
@@ -274,13 +274,16 @@ export function AppSidebar() {
             </View>
           </SidebarHeader>
 
+          {/* Structural divider: below the top bar row */}
+          <View className="h-px w-full bg-border dark:bg-border-dark" />
+
           {searchOpen ? (
             <View className="pb-sp-2">
               <Input
                 accessibilityLabel="Search chats"
                 autoFocus
                 onChangeText={setSearchQuery}
-                placeholder="Search chats…"
+                placeholder="Search chatsâ€¦"
                 value={searchQuery}
               />
             </View>
@@ -329,13 +332,13 @@ export function AppSidebar() {
                         fullBleed
                         isActive={active}
                         leftIcon={
-                          <item.icon color={theme.text} size={26} strokeWidth={1.75} />
+                          <item.icon color={theme.text} size={24} strokeWidth={1.75} />
                         }
                         onPress={() => {
                           router.push(item.route as never);
                         }}
                       >
-                        <Text className="font-sans text-xl font-medium text-foreground dark:text-foreground-dark">
+                        <Text className="font-sans text-base font-medium text-foreground dark:text-foreground-dark">
                           {item.label}
                         </Text>
                       </SidebarMenuButton>
@@ -346,9 +349,12 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroup>
 
+          {/* Structural divider: between the menu block and Pinned/Recents */}
+          <View className="h-px w-full bg-border dark:bg-border-dark" />
+
           {pinnedConversations.length > 0 ? (
             <SidebarGroup className="pt-sp-4">
-              <SidebarGroupLabel className="!px-0 text-base font-bold normal-case tracking-normal text-muted-foreground dark:text-muted-foreground-dark">
+              <SidebarGroupLabel className="!px-0 text-sm font-medium normal-case tracking-normal text-muted-foreground dark:text-muted-foreground-dark">
                 Pinned
               </SidebarGroupLabel>
               <SidebarMenu>
@@ -357,8 +363,12 @@ export function AppSidebar() {
             </SidebarGroup>
           ) : null}
 
+          {pinnedConversations.length > 0 ? (
+            <View className="h-px w-full bg-border dark:bg-border-dark" />
+          ) : null}
+
           <SidebarGroup className="pt-sp-4 pb-32">
-            <SidebarGroupLabel className="!px-0 text-base font-bold normal-case tracking-normal text-muted-foreground dark:text-muted-foreground-dark">
+            <SidebarGroupLabel className="!px-0 text-sm font-medium normal-case tracking-normal text-muted-foreground dark:text-muted-foreground-dark">
               Recents
             </SidebarGroupLabel>
             <SidebarMenu>
@@ -372,7 +382,7 @@ export function AppSidebar() {
                         size="small"
                       />
                       <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
-                        Loading chats…
+                        Loading chatsâ€¦
                       </Text>
                     </View>
                   ) : (
@@ -403,12 +413,12 @@ export function AppSidebar() {
                 onPress={openNewChat}
                 style={({ pressed }) => ({
                   backgroundColor: pressed ? "#2563EB" : ACCENT_BLUE,
-                  paddingHorizontal: 22,
-                  paddingVertical: 14,
+                  paddingHorizontal: 18,
+                  paddingVertical: 10,
                 })}
               >
-                <SquarePen color="#FFFFFF" size={18} strokeWidth={2.25} />
-                <Text className="font-sans text-base font-bold text-white">
+                <SquarePen color="#FFFFFF" size={16} strokeWidth={1.75} />
+                <Text className="font-sans text-base font-semibold text-white">
                   Chat
                 </Text>
               </Pressable>
@@ -417,24 +427,24 @@ export function AppSidebar() {
             <Pressable
               accessibilityLabel="Account"
               accessibilityRole="button"
-              className="h-16 w-16 items-center justify-center overflow-hidden rounded-full"
+              className="h-10 w-10 items-center justify-center overflow-hidden rounded-full"
               onPress={() => {
                 router.push("/settings");
               }}
               style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
             >
               <View
-                className="h-16 w-16 items-center justify-center rounded-full"
-                style={{ backgroundColor: "#2A2A2A" }}
+                className="h-10 w-10 items-center justify-center rounded-full"
+                style={{ backgroundColor: "#3A3A3C" }}
               >
-                <BookMarked color="#FFFFFF" size={24} strokeWidth={1.75} />
+                <BookMarked color="#FFFFFF" size={20} strokeWidth={1.75} />
               </View>
             </Pressable>
 
             <Pressable
               accessibilityLabel="Voice mode"
               accessibilityRole="button"
-              className="h-16 w-16 items-center justify-center rounded-full"
+              className="h-10 w-10 items-center justify-center rounded-full"
               onPress={() => {
                 Alert.alert(
                   "Voice mode",
@@ -444,15 +454,10 @@ export function AppSidebar() {
               style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
             >
               <View
-                className="h-16 w-16 items-center justify-center rounded-full"
-                style={{ backgroundColor: "#2A2A2A" }}
+                className="h-10 w-10 items-center justify-center rounded-full"
+                style={{ backgroundColor: "#1C1C1E" }}
               >
-                <View
-                  className="h-12 w-12 items-center justify-center rounded-full"
-                  style={{ backgroundColor: "#172554" }}
-                >
-                  <AudioLines color={ACCENT_BLUE} size={24} strokeWidth={2} />
-                </View>
+                <AudioLines color={ACCENT_BLUE} size={20} strokeWidth={1.75} />
               </View>
             </Pressable>
           </View>
@@ -587,10 +592,10 @@ function HeaderIconButton({
     <Pressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
-      className="h-14 w-14 items-center justify-center rounded-full"
+      className="h-10 w-10 items-center justify-center rounded-full"
       onPress={onPress}
       style={({ pressed }) => ({
-        backgroundColor: "#2A2A2A",
+        backgroundColor: "#1C1C1E",
         opacity: pressed ? 0.85 : 1,
       })}
     >
@@ -603,8 +608,11 @@ function MessageSquarePlusIcon() {
   // Chat-bubble outline with a small pencil overlay, per the reference.
   return (
     <View className="items-center justify-center">
-      <MessageSquare color="#FFFFFF" size={24} strokeWidth={1.75} />
-      <View className="absolute -bottom-0.5 -right-1 h-3 w-3 items-center justify-center rounded-full" style={{ backgroundColor: "#2A2A2A" }}>
+      <MessageSquare color="#FFFFFF" size={22} strokeWidth={1.75} />
+      <View
+        className="absolute -bottom-0.5 -right-1 h-3 w-3 items-center justify-center rounded-full"
+        style={{ backgroundColor: "#1C1C1E" }}
+      >
         <Pencil color="#FFFFFF" size={8} strokeWidth={2.5} />
       </View>
     </View>

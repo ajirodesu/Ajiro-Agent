@@ -210,10 +210,10 @@ function logComposerDebug(label: string, data: Record<string, unknown>) {
 
 /**
  * Pill input geometry (ChatGPT-style 4-state auto-resize):
- * 1. empty → compact bar (textarea collapses, buttons define the height)
- * 2. typing → slightly taller single line
- * 3. wrapping → grows one line at a time (leading-6 = 24px per line)
- * 4. MAX_LINES reached → locks and the field scrolls internally.
+ * 1. empty â†’ compact bar (textarea collapses, buttons define the height)
+ * 2. typing â†’ slightly taller single line
+ * 3. wrapping â†’ grows one line at a time (leading-6 = 24px per line)
+ * 4. MAX_LINES reached â†’ locks and the field scrolls internally.
  */
 const COMPOSER_LINE_HEIGHT = 24;
 const COMPOSER_EMPTY_HEIGHT = 24;
@@ -548,7 +548,7 @@ export default function Screen() {
                 >
                   <ActivityIndicator color={theme.textSecondary} size="small" />
                   <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
-                    Loading chatÃ¢â‚¬Â¦
+                    Loading chatÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦
                   </Text>
                 </View>
               ) : (
@@ -623,7 +623,7 @@ export default function Screen() {
               canSend={ready && currentModel !== null}
               currentModelLabel={
                 currentModel
-                  ? `${currentModel.providerLabel} Ã‚Â· ${currentModel.label}`
+                  ? `${currentModel.providerLabel} Ãƒâ€šÃ‚Â· ${currentModel.label}`
                   : null
               }
               activeModels={chatInputModelOptions}
@@ -1172,7 +1172,7 @@ const ChatInput = memo(function ChatInput({
   // Auto-resize (4 states): compact when empty, slightly taller on the first
   // typed line, grows line-by-line while wrapping, then locks at the 10-line
   // max and scrolls internally. Shrinks back down as text is removed, and all
-  // height changes animate via reanimated — no snapping.
+  // height changes animate via reanimated â€” no snapping.
   const hasComposerText = prompt.trim().length > 0;
   const composerTargetHeight = !hasComposerText
     ? COMPOSER_EMPTY_HEIGHT
@@ -1881,7 +1881,7 @@ const ChatInput = memo(function ChatInput({
                   <AttachmentDescription>
                     {file.mimeType ?? "Unknown type"}
                     {typeof file.size === "number"
-                      ? ` Ã‚Â· ${file.size} bytes`
+                      ? ` Ãƒâ€šÃ‚Â· ${file.size} bytes`
                       : ""}
                   </AttachmentDescription>
                 </AttachmentContent>
@@ -1927,7 +1927,10 @@ const ChatInput = memo(function ChatInput({
         ) : null}
 
         <View className="rounded-pill border border-border bg-input dark:border-border-dark dark:bg-input-dark">
-          <View className="flex-row items-end px-2 py-1.5">
+          {/* Icons stay vertically centered at every bar height; the container
+              itself has no hover/press effect — feedback is isolated to the
+              icon buttons. */}
+          <View className="flex-row items-center px-2 py-1.5">
             <Pressable
               accessibilityLabel="Attachments and tools"
               accessibilityRole="button"
@@ -1938,11 +1941,11 @@ const ChatInput = memo(function ChatInput({
               }}
               style={({ pressed }) => (pressed ? { opacity: 0.82 } : null)}
             >
-              <Plus color={theme.text} size={20} />
+              <Plus color={theme.text} size={22} />
             </Pressable>
 
             <TextInputWrapper
-              className="min-w-0 flex-1 px-2"
+              className="min-w-0 flex-1 px-1"
               style={{ width: "100%" }}
               onPaste={(payload) => {
                 handlePaste(payload).catch(console.error);
@@ -1976,7 +1979,7 @@ const ChatInput = memo(function ChatInput({
               accessibilityLabel={loading ? "Stop generating" : "Send message"}
               accessibilityRole="button"
               accessibilityState={{ disabled: sendDisabled }}
-              className="h-9 w-9 shrink-0 items-center justify-center self-center rounded-full bg-[#0A84FF]"
+              className="h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#0A84FF]"
               disabled={sendDisabled}
               hitSlop={8}
               onPress={() => {
@@ -2005,9 +2008,9 @@ const ChatInput = memo(function ChatInput({
               })}
             >
               {loading ? (
-                <StopCircle color="#FFFFFF" size={16} />
+                <StopCircle color="#FFFFFF" size={20} />
               ) : (
-                <ArrowUp color="#FFFFFF" size={18} strokeWidth={2.5} />
+                <ArrowUp color="#FFFFFF" size={22} strokeWidth={2.5} />
               )}
             </Pressable>
           </View>
@@ -2051,7 +2054,7 @@ const ChatInput = memo(function ChatInput({
                   }}
                   style={({ pressed }) => (pressed ? { opacity: 0.7 } : null)}
                 >
-                  <Text className="font-sans text-sm text-muted-foreground dark:text-[#D0D0D4]">
+                  <Text className="font-sans text-sm text-muted-foreground dark:text-[#ECECEC]">
                     {word}
                   </Text>
                 </Pressable>
@@ -2174,8 +2177,8 @@ const ChatInput = memo(function ChatInput({
               icon={<ClipboardList color={theme.text} size={16} />}
               label={
                 conversationAgentName === "build"
-                  ? "Select agent · Build"
-                  : `Select agent · ${conversationAgentName}`
+                  ? "Select agent Â· Build"
+                  : `Select agent Â· ${conversationAgentName}`
               }
               onPress={() => {
                 setPlusMenuDrawerOpen(false);
@@ -2203,7 +2206,7 @@ const ChatInput = memo(function ChatInput({
             />
             <ComposerMenuRow
               icon={<Brain color={theme.text} size={16} />}
-              label={`Tool approval Ã‚Â· ${toolApprovalMode === "ask" ? "Ask" : "Allow"}`}
+              label={`Tool approval Ãƒâ€šÃ‚Â· ${toolApprovalMode === "ask" ? "Ask" : "Allow"}`}
               onPress={() => {
                 setPlusMenuDrawerOpen(false);
                 setApprovalModeDrawerOpen(true);
@@ -2497,7 +2500,7 @@ const ChatInput = memo(function ChatInput({
                     subtitle={
                       skill.autoMatch
                         ? skill.description
-                          ? `Auto Ã‚Â· ${skill.description}`
+                          ? `Auto Ãƒâ€šÃ‚Â· ${skill.description}`
                           : "Auto"
                         : (skill.description ?? undefined)
                     }

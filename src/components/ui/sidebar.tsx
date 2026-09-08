@@ -233,7 +233,7 @@ export const Sidebar = forwardRef<ComponentRef<typeof View>, SidebarProps>(
       return null;
     }
 
-    const panelWidth = Math.min(width, Math.max(viewportWidth - 24, 280));
+    const panelWidth = Math.round(viewportWidth * 0.87);
 
     return (
       <ReactNativeModal

@@ -35,6 +35,7 @@ Ajiro Agent is based on the original **Mobile Agent** project developed by **Tec
 
 **Repository:** TecnicalBot/mobile-agent
 **Author:** TecnicalBot
+
 **GitHub:** https://github.com/TecnicalBot/mobile-agent
 
 The original Mobile Agent repository served as the foundation for Ajiro Agent. Ajiro Agent has since been independently modified, refactored, expanded, and rebranded to build a distinct mobile AI-agent experience with additional functionality, integrations, UI/UX changes, Android-specific capabilities, and ongoing development by **AjiroDesu**.

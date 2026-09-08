@@ -1,4 +1,4 @@
-﻿{
+{
   "expo": {
     "name": "Ajiro Agent",
     "slug": "ajiro-agent",
@@ -84,9 +84,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "7944daea-4e83-4c42-8bb5-604ac6ec6ea8"
+        "projectId": "d5cea068-430d-4e1e-b537-4a9958a292dc"
       }
     },
-    "owner": "tecnicalbot"
+    "owner": "ajirodesu"
   }
 }

@@ -23,7 +23,6 @@ jobs:
         with:
           fetch-depth: 2
 
-      # pnpm must be installed before setup-node when using cache: pnpm
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -35,7 +34,7 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Check if app version changed
+      - name: Check app version
         id: version
         shell: bash
         run: |
@@ -55,6 +54,14 @@ jobs:
 
           echo "VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
 
+          # Always build when manually triggered.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Manual workflow run detected. Build will run."
+            exit 0
+          fi
+
+          # Build only when package.json version changes on main.
           if [ "$CURRENT_VERSION" = "$PREVIOUS_VERSION" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "Version unchanged. Skipping release."
@@ -69,14 +76,23 @@ jobs:
 
       - name: Install EAS CLI
         if: steps.version.outputs.changed == 'true'
-        run: npm install -g eas-cli
+        run: npm install --global eas-cli
 
       - name: Verify Expo authentication
         if: steps.version.outputs.changed == 'true'
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
+          echo "Authenticated Expo account:"
           eas whoami
+
+      - name: Verify EAS project
+        if: steps.version.outputs.changed == 'true'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          echo "Checking linked EAS project..."
+          eas project:info
 
       - name: Build Android APK
         if: steps.version.outputs.changed == 'true'
@@ -90,12 +106,17 @@ jobs:
             --wait \
             --json > build.json
 
+      - name: Display build result
+        if: steps.version.outputs.changed == 'true'
+        shell: bash
+        run: |
+          echo "EAS build result:"
+          cat build.json
+
       - name: Resolve APK URL
         if: steps.version.outputs.changed == 'true'
         shell: bash
         run: |
-          cat build.json
-
           APK_URL=$(jq -r '
             if type == "array"
             then .[0].artifacts.buildUrl
@@ -108,22 +129,31 @@ jobs:
             exit 1
           fi
 
+          echo "Resolved APK URL successfully."
+
           echo "APK_URL=$APK_URL" >> "$GITHUB_ENV"
 
       - name: Download APK
         if: steps.version.outputs.changed == 'true'
         shell: bash
         run: |
-          curl -fL "$APK_URL" \
-            -o "ajiro-agent-${VERSION}.apk"
+          APK_FILE="ajiro-agent-${VERSION}.apk"
 
-          if [ ! -s "ajiro-agent-${VERSION}.apk" ]; then
+          curl \
+            --fail \
+            --location \
+            --show-error \
+            --silent \
+            "$APK_URL" \
+            --output "$APK_FILE"
+
+          if [ ! -s "$APK_FILE" ]; then
             echo "APK download failed or produced an empty file."
             exit 1
           fi
 
           echo "APK downloaded successfully:"
-          ls -lh "ajiro-agent-${VERSION}.apk"
+          ls -lh "$APK_FILE"
 
       - name: Publish GitHub Release
         if: steps.version.outputs.changed == 'true'

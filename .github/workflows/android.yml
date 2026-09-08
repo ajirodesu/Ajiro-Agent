@@ -59,6 +59,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
 
       - name: Install dependencies
         if: steps.version.outputs.changed == 'true'
@@ -86,7 +87,12 @@ jobs:
         run: |
           cat build.json
 
-          APK_URL=$(jq -r 'if type == "array" then .[0].artifacts.buildUrl else .artifacts.buildUrl end' build.json)
+          APK_URL=$(jq -r '
+            if type == "array"
+            then .[0].artifacts.buildUrl
+            else .artifacts.buildUrl
+            end
+          ' build.json)
 
           if [ -z "$APK_URL" ] || [ "$APK_URL" = "null" ]; then
             echo "Failed to resolve APK URL from build.json"
@@ -98,7 +104,8 @@ jobs:
       - name: Download APK
         if: steps.version.outputs.changed == 'true'
         run: |
-          curl -fL "$APK_URL" -o ajiro-agent-${{ env.VERSION }}.apk
+          curl -fL "$APK_URL" \
+            -o "ajiro-agent-${{ env.VERSION }}.apk"
 
       - name: Publish GitHub Release
         if: steps.version.outputs.changed == 'true'

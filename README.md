@@ -60,3 +60,7 @@ Contributions are welcome. Feel free to open an issue for bug reports, feature r
 ## License
 
 This project is licensed under the MIT License.
+
+## Note
+
+Do not install the APK for now. I will fix the issues soon.

@@ -27,6 +27,32 @@ The application is distributed through GitHub Releases.
 3. Grant the required permissions.
 4. Start using Ajiro Agent.
 
+## 🙏 Original Source & Special Thanks
+
+Ajiro Agent is based on the original **Mobile Agent** project developed by **TecnicalBot**.
+
+### Original Source Code
+
+**Repository:** TecnicalBot/mobile-agent
+**Author:** TecnicalBot
+**GitHub:** https://github.com/TecnicalBot/mobile-agent
+
+The original Mobile Agent repository served as the foundation for Ajiro Agent. Ajiro Agent has since been independently modified, refactored, expanded, and rebranded to build a distinct mobile AI-agent experience with additional functionality, integrations, UI/UX changes, Android-specific capabilities, and ongoing development by **AjiroDesu**.
+
+### Special Thanks
+
+Special thanks to **TecnicalBot** for creating and open-sourcing the original Mobile Agent project and for providing the foundation on which Ajiro Agent was developed.
+
+We greatly appreciate the original architecture, ideas, engineering work, and contributions that made it possible to extend the project into Ajiro Agent.
+
+**Original Project:**
+https://github.com/TecnicalBot/mobile-agent
+
+**Ajiro Agent:**
+https://github.com/ajirodesu/ajiro-agent
+
+All subsequent modifications and additions specific to Ajiro Agent are maintained by **AjiroDesu**.
+
 ## Contributing
 
 Contributions are welcome. Feel free to open an issue for bug reports, feature requests, or submit a pull request if you'd like to contribute.

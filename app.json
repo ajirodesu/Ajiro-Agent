@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ajiro Agent",
     "slug": "ajiro-agent",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ajiro-agent",
@@ -87,6 +87,6 @@
         "projectId": "d5cea068-430d-4e1e-b537-4a9958a292dc"
       }
     },
-    "owner": "ajirodesu"
+    "owner": "ajirohq"
   }
 }

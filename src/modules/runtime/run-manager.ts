@@ -8,7 +8,11 @@ import type {
   PendingToolApprovalRequest,
 } from "@/core/types/app-state";
 
-export type ToolApprovalDecision = "approve" | "deny" | "abort";
+export type ToolApprovalDecision =
+  | "approve"
+  | "approve_session"
+  | "deny"
+  | "abort";
 
 export const ACTIVE_AGENT_RUN_STATUSES: AgentRunStatus[] = [
   "queued",

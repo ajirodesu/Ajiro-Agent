@@ -5,6 +5,10 @@ import type {
   GenerateModelTextStreamParams,
   ProviderLanguageModel,
 } from "@/modules/runtime/drivers/types";
+import { createStreamSmoother } from "@/modules/runtime/stream-smoother";
+
+/** No text deltas for this long → treat the provider stream as stalled. */
+export const STREAM_STALL_TIMEOUT_MS = 60_000;
 
 export function shouldUseStreamingAISDK() {
   return (
@@ -198,9 +202,44 @@ async function generateViaAISDKWithContinuation(
     }
 
     try {
-      for await (const delta of result.textStream) {
-        finalText += delta;
-        params.onDelta?.(delta);
+      // Smooth streaming: queue deltas and flush on a fixed cadence so bursty
+      // network timing does not stutter the UI. A watchdog aborts the stream
+      // when no deltas arrive for STREAM_STALL_TIMEOUT_MS ("response stalled").
+      const smoother = createStreamSmoother({
+        onFlush: (text) => {
+          params.onDelta?.(text);
+        },
+      });
+      let lastDeltaAt = Date.now();
+      const stallTimer = setInterval(() => {
+        if (Date.now() - lastDeltaAt > STREAM_STALL_TIMEOUT_MS) {
+          streamAbort.abort();
+        }
+      }, 2_000);
+      const streamAbort = new AbortController();
+      const onAbort = () => streamAbort.abort(params.abortSignal?.reason);
+      params.abortSignal?.addEventListener("abort", onAbort, { once: true });
+
+      try {
+        for await (const delta of result.textStream) {
+          lastDeltaAt = Date.now();
+          finalText += delta;
+          smoother.push(delta);
+        }
+      } catch (streamError) {
+        if (streamAbort.signal.aborted && !params.abortSignal?.aborted) {
+          const stallError = new Error(
+            "Response stalled — no data from the provider for a while.",
+          );
+          stallError.name = "StreamStalledError";
+          throw stallError;
+        }
+
+        throw streamError;
+      } finally {
+        clearInterval(stallTimer);
+        params.abortSignal?.removeEventListener("abort", onAbort);
+        smoother.end();
       }
 
       endRawReasoning();

@@ -20,6 +20,7 @@ import {
   partitionSelectedFiles,
 } from "@/modules/runtime/message-conversion";
 import { modelRuntime } from "@/modules/runtime/model-runtime";
+import { buildAutonomySystemPrompt } from "@/modules/runtime/autonomy";
 import {
   buildModelPromptArtifact,
   buildToolContextArtifact,
@@ -244,7 +245,7 @@ function classifyRetryableError(error: unknown): {
     error instanceof Error ? error.message : String(error);
 
   if (
-    /timeout|timed ?out|network error|fetch failed|5\d\d|service unavailable|econnrefused|enotfound|socket hang up|request aborted/i.test(
+    /timeout|timed ?out|network error|fetch failed|5\d\d|service unavailable|econnrefused|enotfound|socket hang up|request aborted|stalled|stream error|overloaded/i.test(
       message,
     )
   ) {
@@ -572,6 +573,8 @@ export async function executeClaimedAgentRun(
     ...(assistantMessage.metadata?.todoList ?? []),
   ] as import("@/core/types/app-state").TodoListItem[];
   let pendingEditCount = 0;
+  /** "Approve for this session" adds tools here; cleared when the run ends. */
+  const sessionApprovedToolNames = new Set<string>();
   const appliedSkillIds =
     assistantMessage.metadata?.appliedSkillIds ??
     userMessage?.metadata?.appliedSkillIds ??
@@ -1234,6 +1237,7 @@ export async function executeClaimedAgentRun(
             ? ("auto" as const)
             : snapshotRef.current.settings.toolApprovalMode,
           onRecord: handleToolExecutionRecord,
+          sessionApprovedTools: sessionApprovedToolNames,
           shouldRequireApproval: (toolName) =>
             !autoApprovedToolNames.has(toolName),
           requestApproval: (request) =>
@@ -1352,6 +1356,7 @@ export async function executeClaimedAgentRun(
     const runtimeSystem =
       [
         agent.prompt?.trim() || BASE_AGENT_SYSTEM_PROMPT,
+        buildAutonomySystemPrompt(),
         agentModeRuntimeSystem,
         subagentRuntimeSystem,
         buildCurrentDateTimeSystemPrompt(),

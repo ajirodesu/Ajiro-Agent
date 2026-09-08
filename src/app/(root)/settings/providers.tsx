@@ -23,6 +23,12 @@ import { useConfig } from "@/hooks/use-config";
 import { useAppState } from "@/hooks/use-app-state";
 import { useTheme } from "@/hooks/use-theme";
 import { invalidateLiveModelCatalog } from "@/modules/config/live-model-catalog";
+import {
+  fetchProviderModels,
+  testProviderConnection,
+  type ProviderConnectionTestResult,
+} from "@/modules/providers/universal";
+import { secureSecretStore } from "@/core/services/secrets";
 import { getSupportedProviderDefinition } from "@/modules/config/registry";
 import { fetchOnDeviceModelCatalogCached } from "@/modules/on-device/catalog";
 import { getOnDeviceToolsMode } from "@/modules/on-device/runtime-policy";
@@ -78,6 +84,7 @@ export default function SettingsProvidersScreen() {
   const [customProviderName, setCustomProviderName] = useState("");
   const [customProviderBaseUrl, setCustomProviderBaseUrl] = useState("");
   const [customProviderApiKey, setCustomProviderApiKey] = useState("");
+  const [customProviderTest, setCustomProviderTest] = useState<ProviderConnectionTestResult | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [baseUrlInput, setBaseUrlInput] = useState("");
   const [customModelId, setCustomModelId] = useState("");
@@ -317,15 +324,30 @@ export default function SettingsProvidersScreen() {
     setCustomProviderName("");
     setCustomProviderBaseUrl("");
     setCustomProviderApiKey("");
+    setCustomProviderTest(null);
   };
 
   const addCustomProvider = async () => {
     const apiKey = customProviderApiKey.trim();
+    const baseUrl = customProviderBaseUrl.trim();
+
+    setCustomProviderTest(null);
+    const result = await testProviderConnection({
+      apiKey: apiKey || null,
+      baseUrl,
+      family: "openai-compatible",
+      id: "setup-test",
+    });
+    setCustomProviderTest(result);
+
+    if (!result.ok) {
+      return;
+    }
 
     await createProvider({
       apiKey: apiKey || undefined,
       authType: apiKey ? "apiKey" : "none",
-      baseUrl: customProviderBaseUrl.trim(),
+      baseUrl,
       enabled: true,
       family: "openai-compatible",
       id: `custom-${Crypto.randomUUID()}`,
@@ -694,6 +716,19 @@ export default function SettingsProvidersScreen() {
               secureTextEntry
               value={customProviderApiKey}
             />
+            {customProviderTest ? (
+              <Text
+                className={cn(
+                  "font-sans text-xs",
+                  customProviderTest.ok
+                    ? "text-foreground dark:text-foreground-dark"
+                    : "text-destructive dark:text-destructive-dark",
+                )}
+              >
+                {customProviderTest.ok ? "✓ " : "✕ "}
+                {customProviderTest.message}
+              </Text>
+            ) : null}
           </DrawerBody>
           <DrawerFooter>
             <View className="flex-row gap-sp-2">
@@ -1055,45 +1090,96 @@ export default function SettingsProvidersScreen() {
                   ) : null}
 
                   {selectedProviderIsCustom ? (
-                    <View className="flex-row gap-sp-2">
-                      <Input
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        className="flex-1"
-                        onChangeText={setCustomModelId}
-                        placeholder="Model ID"
-                        value={customModelId}
-                      />
-                      <Button
-                        disabled={
-                          !customModelId.trim() || !selectedProviderActive
-                        }
-                        loading={
-                          busyKey ===
-                          `custom-model:${selectedProvider.id}:${customModelId.trim()}`
-                        }
-                        onPress={() => {
-                          const modelId = customModelId.trim();
-                          runAction(
-                            `custom-model:${selectedProvider.id}:${modelId}`,
-                            async () => {
-                              await createModelPreset({
-                                label: modelId,
-                                makeDefault:
-                                  selectedProviderModels.length === 0,
-                                modelId,
-                                providerId: selectedProvider.id,
-                                select: true,
-                              });
-                              setCustomModelId("");
-                            },
-                          ).catch(console.error);
-                        }}
-                        size="sm"
-                        variant="outline"
-                      >
-                        Use
-                      </Button>
+                    <View className="gap-sp-2">
+                      <View className="flex-row items-center justify-between">
+                        <Text className="font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
+                          {selectedProviderModels.length > 0
+                            ? `${selectedProviderModels.length} model(s) from this provider — or add a custom ID:`
+                            : "No model list available from this provider — add a model ID manually (unverified/custom):"}
+                        </Text>
+                        <Button
+                          loading={
+                            busyKey === `universal-refresh:${selectedProvider.id}`
+                          }
+                          onPress={() => {
+                            runAction(
+                              `universal-refresh:${selectedProvider.id}`,
+                              async () => {
+                                const apiKey =
+                                  await secureSecretStore.getProviderApiKey(
+                                    selectedProvider.id,
+                                  );
+                                const result = await fetchProviderModels(
+                                  {
+                                    apiKey,
+                                    baseUrl: selectedProvider.baseUrl ?? "",
+                                    family: "openai-compatible",
+                                    id: selectedProvider.id,
+                                  },
+                                  { forceRefresh: true },
+                                );
+
+                                if (result.error) {
+                                  throw new Error(result.error);
+                                }
+
+                                await refresh();
+                              },
+                            ).catch((refreshError) => {
+                              Alert.alert(
+                                "Refresh failed",
+                                refreshError instanceof Error
+                                  ? refreshError.message
+                                  : "Could not fetch the model list.",
+                              );
+                            });
+                          }}
+                          size="xs"
+                          variant="outline"
+                        >
+                          Fetch models
+                        </Button>
+                      </View>
+                      <View className="flex-row gap-sp-2">
+                        <Input
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          className="flex-1"
+                          onChangeText={setCustomModelId}
+                          placeholder="Model ID"
+                          value={customModelId}
+                        />
+                        <Button
+                          disabled={
+                            !customModelId.trim() || !selectedProviderActive
+                          }
+                          loading={
+                            busyKey ===
+                            `custom-model:${selectedProvider.id}:${customModelId.trim()}`
+                          }
+                          onPress={() => {
+                            const modelId = customModelId.trim();
+                            runAction(
+                              `custom-model:${selectedProvider.id}:${modelId}`,
+                              async () => {
+                                await createModelPreset({
+                                  label: modelId,
+                                  makeDefault:
+                                    selectedProviderModels.length === 0,
+                                  modelId,
+                                  providerId: selectedProvider.id,
+                                  select: true,
+                                });
+                                setCustomModelId("");
+                              },
+                            ).catch(console.error);
+                          }}
+                          size="sm"
+                          variant="outline"
+                        >
+                          Use
+                        </Button>
+                      </View>
                     </View>
                   ) : null}
 

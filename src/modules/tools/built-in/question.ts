@@ -8,8 +8,8 @@ import type {
   ToolExecutionRecord,
 } from "@/core/types/app-state";
 
-const MAX_QUESTIONS = 5;
-const MAX_CHOICES = 8;
+const MAX_QUESTIONS = 3;
+const MAX_CHOICES = 4;
 const MAX_FREEFORM_LENGTH = 1000;
 
 let questionnaireSequence = 0;
@@ -39,7 +39,7 @@ export function createQuestionTool(input: {
     tools: {
       question: tool({
         description:
-          "Ask the user a short set of questions to clarify the task before continuing. Use only when the request is genuinely ambiguous or lacks essential information; prefer discovering the answer with the available tools first. The run pauses while the user answers. Keep questions specific and offer choices when useful.",
+          "Ask the user for a decision you genuinely cannot make or verify yourself (destructive/irreversible confirmations, missing credentials, or truly diverging paths). Prefer proceeding with a stated assumption when the answer is discoverable or easily reversible — do not use this tool for things a read can answer. Ask the single most blocking question in one call; never stack multiple unrelated questions. Provide 2-4 concrete, mutually exclusive choices when the answer space is small; the user can always type their own answer instead, and the run resumes immediately with their decision applied.",
         inputSchema: z.object({
           questions: z
             .array(questionnaireItemSchema)
@@ -51,10 +51,10 @@ export function createQuestionTool(input: {
           const request: PendingQuestionnaireRequest = {
             id: `questionnaire:${Date.now()}:${questionnaireSequence}`,
             items: questions.map((item) => ({
-              allowFreeform: item.allowFreeform ?? true,
+              allowFreeform: true,
               choices: item.choices,
               description: item.description ?? null,
-              freeformPlaceholder: item.freeformPlaceholder ?? null,
+              freeformPlaceholder: item.freeformPlaceholder ?? "Type your own answer",
               id: item.id,
               multiple: item.multiple ?? false,
               prompt: item.prompt,

@@ -138,6 +138,7 @@ type AppStateContextValue = {
         input: Partial<AppSettings["notificationSettings"]>,
     ) => Promise<void>;
     approvePendingToolApproval: () => void;
+    approveSessionPendingToolApproval: () => void;
     pendingQuestionnaire: PendingQuestionnaire | null;
     submitPendingQuestionnaire: (
         answers: PendingQuestionnaireAnswer[],
@@ -742,7 +743,7 @@ Follow all rules in <rules>
 Use the <examples> so you know what a good title looks like.
 Your output must be:
 - A single line
-- Ã¢â€°Â¤50 characters
+- ÃƒÂ¢Ã¢â‚¬Â°Ã‚Â¤50 characters
 - No explanations
 </task>
 
@@ -752,8 +753,8 @@ Your output must be:
 </rules>
 
 <examples>
-"write a blog post on x and store in my notion" Ã¢â€ â€™ Blog for X
-"checkout x repo on github" Ã¢â€ â€™ Explore X Repo
+"write a blog post on x and store in my notion" ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Blog for X
+"checkout x repo on github" ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Explore X Repo
 </examples>
 `;
         const fallback = buildConversationTitle(input.firstUserMessage);
@@ -3025,8 +3026,8 @@ Your output must be:
                 createExecutionTimelineEvent({
                     createdAt: timestamp,
                     detail: model
-                        ? `${model.providerLabel} Ã‚Â· ${model.label}`
-                        : `${run.providerId} Ã‚Â· ${run.modelId}`,
+                        ? `${model.providerLabel} Ãƒâ€šÃ‚Â· ${model.label}`
+                        : `${run.providerId} Ãƒâ€šÃ‚Â· ${run.modelId}`,
                     kind: "run",
                     status: "pending",
                     title: "Run queued",
@@ -3382,7 +3383,7 @@ Your output must be:
             appliedSkillIds,
             executionTimeline: [
                 createExecutionTimelineEvent({
-                    detail: `${model.providerLabel} Ã‚Â· ${model.label}`,
+                    detail: `${model.providerLabel} Ãƒâ€šÃ‚Â· ${model.label}`,
                     kind: "run",
                     status: "pending",
                     title: "Run queued",
@@ -3545,7 +3546,7 @@ Your output must be:
                 appliedSkillIds,
                 executionTimeline: [
                     createExecutionTimelineEvent({
-                        detail: `${model.providerLabel} Ã‚Â· ${model.label}`,
+                        detail: `${model.providerLabel} Ãƒâ€šÃ‚Â· ${model.label}`,
                         kind: "run",
                         status: "pending",
                         title: "Run queued",
@@ -3627,6 +3628,11 @@ Your output must be:
                 approvePendingToolApproval: () => {
                     if (pendingToolApproval) {
                         resolvePendingToolApproval(pendingToolApproval, "approve");
+                    }
+                },
+                approveSessionPendingToolApproval: () => {
+                    if (pendingToolApproval) {
+                        resolvePendingToolApproval(pendingToolApproval, "approve_session");
                     }
                 },
                 agentRuns: snapshot.agentRuns,
@@ -3882,6 +3888,7 @@ export function useChat() {
         currentSelectedSkillIds: context.currentSelectedSkillIds,
         pendingToolApproval: context.pendingToolApproval,
         approvePendingToolApproval: context.approvePendingToolApproval,
+        approveSessionPendingToolApproval: context.approveSessionPendingToolApproval,
         denyPendingToolApproval: context.denyPendingToolApproval,
         pendingQuestionnaire: context.pendingQuestionnaire,
         submitPendingQuestionnaire: context.submitPendingQuestionnaire,

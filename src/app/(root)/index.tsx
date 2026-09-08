@@ -277,6 +277,7 @@ export default function Screen() {
   const chatInfo = useChatInfo();
   const {
     approvePendingToolApproval,
+    approveSessionPendingToolApproval,
     denyPendingToolApproval,
     clearConversationFolder,
     clearWorkspaceFiles,
@@ -695,19 +696,28 @@ export default function Screen() {
                 </View>
               </DrawerBody>
               <DrawerFooter>
-                <View className="flex-row gap-sp-2">
+                <View className="gap-sp-2">
+                  <View className="flex-row gap-sp-2">
+                    <Button
+                      className="flex-1"
+                      onPress={denyPendingToolApproval}
+                      variant="outline"
+                    >
+                      Deny
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      onPress={approvePendingToolApproval}
+                    >
+                      Approve
+                    </Button>
+                  </View>
                   <Button
-                    className="flex-1"
-                    onPress={denyPendingToolApproval}
-                    variant="outline"
+                    className="w-full"
+                    onPress={approveSessionPendingToolApproval}
+                    variant="secondary"
                   >
-                    Deny
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    onPress={approvePendingToolApproval}
-                  >
-                    Allow once
+                    Approve for this session
                   </Button>
                 </View>
               </DrawerFooter>

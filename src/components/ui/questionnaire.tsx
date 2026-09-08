@@ -160,6 +160,17 @@ export function Questionnaire({
     onSubmit(buildAnswers(questionnaire, selections, freeform));
   }
 
+  /** Single-choice questions submit immediately on tap (chip shortcut). */
+  function handleChoiceTap(item: QuestionnaireItem, choice: string) {
+    toggleChoice(item, choice, selections, setSelections);
+
+    if (!item.multiple && !isLast) {
+      const next = { ...selections, [item.id]: choice };
+
+      onSubmit(buildAnswers(questionnaire, next, freeform));
+    }
+  }
+
   return (
     <Drawer
       dismissible
@@ -178,19 +189,23 @@ export function Questionnaire({
         <DrawerHeader>
           <DrawerTitle>{questionnaire.chatTitle}</DrawerTitle>
           <DrawerDescription>
-            The assistant paused to ask you a few questions.
+            {total > 1
+              ? "The assistant paused to ask you a few questions."
+              : "The assistant paused to ask you one question."}
           </DrawerDescription>
         </DrawerHeader>
         <DrawerBody contentContainerClassName="gap-sp-3" ref={bodyRef}>
-          <Text
-            accessibilityLabel="Questionnaire progress"
-            accessibilityLiveRegion="polite"
-            accessibilityRole="progressbar"
-            className="font-sans text-xs font-medium text-muted-foreground dark:text-muted-foreground-dark"
-            style={{ fontVariant: ["tabular-nums"] }}
-          >
-            Question {activeIndex + 1} of {total}
-          </Text>
+          {total > 1 ? (
+            <Text
+              accessibilityLabel="Questionnaire progress"
+              accessibilityLiveRegion="polite"
+              accessibilityRole="progressbar"
+              className="font-sans text-xs font-medium text-muted-foreground dark:text-muted-foreground-dark"
+              style={{ fontVariant: ["tabular-nums"] }}
+            >
+              Question {activeIndex + 1} of {total}
+            </Text>
+          ) : null}
           <View className="flex-col gap-sp-3">
             <Text className="font-sans text-base leading-snug font-medium text-foreground dark:text-foreground-dark">
               {item.prompt}
@@ -213,9 +228,7 @@ export function Questionnaire({
                       checked={checked}
                       label={choice}
                       multiple={item.multiple ?? false}
-                      onPress={() =>
-                        toggleChoice(item, choice, selections, setSelections)
-                      }
+                      onPress={() => handleChoiceTap(item, choice)}
                     />
                   );
                 })}

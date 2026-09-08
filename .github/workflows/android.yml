@@ -1,3 +1,4 @@
+```yaml
 name: Android APK Release
 
 on:
@@ -23,16 +24,17 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
+      # pnpm must be installed before setup-node when using cache: pnpm
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.29.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
 
       - name: Check if app version changed
         id: version
@@ -116,7 +118,13 @@ jobs:
           curl -fL "$APK_URL" \
             -o "ajiro-agent-${VERSION}.apk"
 
-          test -s "ajiro-agent-${VERSION}.apk"
+          if [ ! -s "ajiro-agent-${VERSION}.apk" ]; then
+            echo "APK download failed or produced an empty file."
+            exit 1
+          fi
+
+          echo "APK downloaded successfully:"
+          ls -lh "ajiro-agent-${VERSION}.apk"
 
       - name: Publish GitHub Release
         if: steps.version.outputs.changed == 'true'
@@ -140,3 +148,4 @@ jobs:
         run: |
           echo "Version unchanged."
           echo "APK build and GitHub release skipped."
+```

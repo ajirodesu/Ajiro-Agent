@@ -1,17 +1,17 @@
 /**
  * Exec tool for the on-device coding harness.
  *
- * CHOSEN APPROACH — option (c): a fixed allow-list of in-process JS
+ * CHOSEN APPROACH â€” option (c): a fixed allow-list of in-process JS
  * implementations of common checks, NOT a real shell.
  *
  * Why:
- * 1. Stock Android (no root, no Termux) exposes no exec() for apps —
+ * 1. Stock Android (no root, no Termux) exposes no exec() for apps â€”
  *    Runtime.getRuntime().exec() can only run the app's own bundled binaries,
  *    so a general shell (option a) would require shipping one or rooting.
  * 2. Termux:API (option b) adds a hard external dependency on another app and
  *    an intent round-trip per command; the app cannot assume it is installed.
- * 3. The checks that matter for a coding verify loop — typecheck, lint, text
- *    search, file stats, git status — can all be implemented in-process with
+ * 3. The checks that matter for a coding verify loop â€” typecheck, lint, text
+ *    search, file stats, git status â€” can all be implemented in-process with
  *    JS libraries (@babel/parser parse of changed files, regex grep, git via
  *    isomorphic-git). That keeps everything sandboxed inside the SAF-granted
  *    project directory, approval-gated, and identical on every device.
@@ -22,7 +22,6 @@
  *
  * Author: AjiroDesu
  */
-import * as parser from "@babel/parser";
 import type { ExternalFolderSession } from "@/core/types/app-state";
 import { createExternalFolderService } from "@/core/services/external-folder/external-folder-service";
 
@@ -135,11 +134,13 @@ function isCodeFile(path: string) {
   return CODE_EXTENSIONS.some((extension) => lower.endsWith(extension));
 }
 
-function runTypecheckJs(
+async function runTypecheckJs(
   session: ExternalFolderSession,
   rootPath: string,
   timedOut: { value: boolean },
 ) {
+  // Lazy load: @babel/parser is ~1MB of AST code that only this check needs.
+  const { parse: parseBabel } = await import("@babel/parser");
   const budget = { files: MAX_FILES_SCANNED };
   const files = collectFiles(session, rootPath, budget).filter(
     (entry) => entry.kind === "file" && isCodeFile(entry.path),
@@ -153,7 +154,7 @@ function runTypecheckJs(
 
     try {
       const content = textCache.get(file.path) ?? "";
-      parser.parse(content, {
+      parseBabel(content, {
         allowReturnOutsideFunction: true,
         plugins: ["typescript", "jsx"],
         sourceType: "unambiguous",
@@ -367,7 +368,7 @@ export async function runExecCommand(
 
     switch (input.command) {
       case "typecheck-js": {
-        output = runTypecheckJs(session, path, timedOut);
+        output = await runTypecheckJs(session, path, timedOut);
         break;
       }
       case "lint-js": {

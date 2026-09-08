@@ -3,12 +3,11 @@
  * answer "where is X defined" without rescanning the tree every turn.
  *
  * Uses @babel/parser (already a dependency) instead of ts-morph to keep the
- * bundle small — the walk records file, exported symbol names, function/class
+ * bundle small â€” the walk records file, exported symbol names, function/class
  * declarations and top-level const bindings for JS/TS/JSX/TSX files.
  *
  * Author: AjiroDesu
  */
-import * as parser from "@babel/parser";
 import type { ExternalFolderSession } from "@/core/types/app-state";
 import { createExternalFolderService } from "@/core/services/external-folder/external-folder-service";
 
@@ -82,12 +81,13 @@ function collectCodeFiles(
   return files;
 }
 
-function extractSymbols(content: string): RepoSymbol[] {
+async function extractSymbols(content: string): Promise<RepoSymbol[]> {
   const symbols: RepoSymbol[] = [];
+  const { parse: parseBabel } = await import("@babel/parser");
   let ast;
 
   try {
-    ast = parser.parse(content, {
+    ast = parseBabel(content, {
       allowReturnOutsideFunction: true,
       plugins: ["typescript", "jsx"],
       sourceType: "unambiguous",
@@ -146,14 +146,14 @@ export async function buildRepoMap(
   for (const file of files) {
     try {
       const text = await service.readTextFile(session, file, MAX_FILE_CHARS);
-      const fileSymbols = extractSymbols(text);
+      const fileSymbols = await extractSymbols(text);
 
       for (const symbol of fileSymbols) {
         symbol.file = file;
         symbols.push(symbol);
       }
     } catch {
-      // unreadable/binary — skip
+      // unreadable/binary â€” skip
     }
   }
 
@@ -183,7 +183,7 @@ export function formatRepoMap(map: RepoMap) {
 
   for (const [file, fileSymbols] of [...grouped.entries()].sort()) {
     if (lines.length >= MAX_MAP_LINES) {
-      lines.push("…[map truncated]");
+      lines.push("â€¦[map truncated]");
       break;
     }
 

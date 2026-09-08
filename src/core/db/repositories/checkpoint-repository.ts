@@ -4,6 +4,7 @@
  *
  * Author: AjiroDesu
  */
+import * as Crypto from "expo-crypto";
 import { and, desc, eq } from "drizzle-orm";
 
 import type { AppDatabase } from "@/core/db/repositories/types";
@@ -66,7 +67,7 @@ export function createCheckpointRepository(
       const record = {
         conversationId: input.conversationId,
         createdAt: now,
-        id: input.id ?? crypto.randomUUID(),
+        id: input.id ?? Crypto.randomUUID(),
         label: input.label,
         projectUri: input.projectUri,
         runId: input.runId ?? null,

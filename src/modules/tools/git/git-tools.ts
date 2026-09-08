@@ -4,12 +4,11 @@
  * A native git binary is not available on stock Android, so these tools use
  * isomorphic-git running over a persistent local mirror of the SAF-granted
  * project directory (see saf-fs.ts). Remote operations (PRs, issues, review
- * threads) are intentionally NOT here — those belong to the GitHub MCP server;
+ * threads) are intentionally NOT here â€” those belong to the GitHub MCP server;
  * these tools only touch the local working copy.
  *
  * Author: AjiroDesu
  */
-import * as git from "isomorphic-git";
 
 import { createRecord, summarizeValue } from "@/modules/tools/built-in/shared";
 import type { ToolExecutionRecord , ExternalFolderSession } from "@/core/types/app-state";
@@ -18,6 +17,24 @@ import {
   getMirrorRoot,
   syncProjectToMirror,
 } from "@/modules/tools/git/saf-fs";
+
+/**
+ * isomorphic-git is loaded lazily (dynamic import) on first git tool call:
+ * it pulls Node shims (Buffer, events) that must not run during app startup,
+ * and the import cost is wasted on sessions that never use git.
+ */
+async function loadGit() {
+  const bufferModule = await import("buffer");
+
+  if (!(globalThis as Record<string, unknown>).Buffer) {
+    (globalThis as unknown as { Buffer: unknown }).Buffer =
+      bufferModule.Buffer;
+  }
+
+  return import("isomorphic-git");
+}
+
+type GitModule = Awaited<ReturnType<typeof loadGit>>;
 
 export type GitToolFactoryParams = {
   onRecord?: (record: ToolExecutionRecord) => void;
@@ -31,10 +48,15 @@ type GitTool = {
 
 async function withRepo<T>(
   session: ExternalFolderSession,
-  action: (fs: ReturnType<typeof createMirrorFs>, dir: string) => Promise<T>,
+  action: (
+    fs: ReturnType<typeof createMirrorFs>,
+    dir: string,
+    git: GitModule,
+  ) => Promise<T>,
 ): Promise<T> {
   const { root } = await syncProjectToMirror(session);
   const fs = createMirrorFs(root);
+  const git = await loadGit();
 
   try {
     await git.init({ fs, dir: "/" });
@@ -42,7 +64,7 @@ async function withRepo<T>(
     // already a repo
   }
 
-  return action(fs, "/");
+  return action(fs, "/", git);
 }
 
 function statusMatrixToSummary(
@@ -106,7 +128,7 @@ export function createGitTools(params: GitToolFactoryParams) {
         "Show local git status (added/modified/deleted files) for the project. Syncs the SAF project into the local git mirror first. Read-only.",
         async () => {
           const session = params.session;
-          return withRepo(session, async (fs, dir) => {
+          return withRepo(session, async (fs, dir, git) => {
             const matrix = await git.statusMatrix({ fs, dir });
             const summary = statusMatrixToSummary(matrix);
 
@@ -115,7 +137,7 @@ export function createGitTools(params: GitToolFactoryParams) {
               summary.modified.length === 0 &&
               summary.deleted.length === 0
             ) {
-              return "Working tree clean — no local changes.";
+              return "Working tree clean â€” no local changes.";
             }
 
             return [
@@ -140,7 +162,7 @@ export function createGitTools(params: GitToolFactoryParams) {
         async (rawInput) => {
           const input = (rawInput ?? {}) as { path?: string };
           const session = params.session;
-          return withRepo(session, async (fs, dir) => {
+          return withRepo(session, async (fs, dir, git) => {
             const matrix = await git.statusMatrix({ fs, dir });
             const changed = matrix.filter(
               ([file, head, workdir]) =>
@@ -194,7 +216,7 @@ export function createGitTools(params: GitToolFactoryParams) {
           }
 
           const session = params.session;
-          return withRepo(session, async (fs, dir) => {
+          return withRepo(session, async (fs, dir, git) => {
             if (input.path === "." || input.path === "-A") {
               const matrix = await git.statusMatrix({ fs, dir });
 
@@ -225,7 +247,7 @@ export function createGitTools(params: GitToolFactoryParams) {
           }
 
           const session = params.session;
-          return withRepo(session, async (fs, dir) => {
+          return withRepo(session, async (fs, dir, git) => {
             const sha = await git.commit({
               fs,
               dir,
@@ -246,7 +268,7 @@ export function createGitTools(params: GitToolFactoryParams) {
             name?: string;
           };
           const session = params.session;
-          return withRepo(session, async (fs, dir) => {
+          return withRepo(session, async (fs, dir, git) => {
             if (input.action === "create") {
               if (!input.name?.trim()) {
                 throw new Error("git-branch create requires a name.");
@@ -267,7 +289,7 @@ export function createGitTools(params: GitToolFactoryParams) {
         async (rawInput) => {
           const input = (rawInput ?? {}) as { depth?: number };
           const session = params.session;
-          return withRepo(session, async (fs, dir) => {
+          return withRepo(session, async (fs, dir, git) => {
             const commits = await git.log({
               fs,
               dir,

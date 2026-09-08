@@ -2,7 +2,7 @@
   "name": "Ajiro Agent",
   "description": "An AI agent that runs on your phone.",
   "main": "index.js",
-  "version": "2.1.1",
+  "version": "1.0.2",
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.7",
     "@ai-sdk/google": "^4.0.6",

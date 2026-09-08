@@ -1,4 +1,4 @@
-{
+﻿{
   "expo": {
     "name": "Ajiro Agent",
     "slug": "ajiro-agent",
@@ -20,7 +20,7 @@
       }
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES",
         "android.permission.WAKE_LOCK",

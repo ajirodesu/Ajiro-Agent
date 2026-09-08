@@ -9,10 +9,12 @@
  */
 import { Directory, File, Paths } from "expo-file-system";
 
-import type { ExternalFolderSession } from "@/core/types/app-state";
 import { createExternalFolderService } from "@/core/services/external-folder/external-folder-service";
+import type { ExternalFolderSession } from "@/core/types/app-state";
 
-const MIRROR_ROOT = new Directory(Paths.document, "ajiro-projects");
+function getMirrorRoot(): Directory {
+  return new Directory(Paths.document, "ajiro-projects");
+}
 
 export function getMirrorRoot(session: ExternalFolderSession) {
   const safeName =
@@ -25,7 +27,7 @@ export function getMirrorRoot(session: ExternalFolderSession) {
     [...session.uri].reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) | 0, 7),
   ).toString(36);
 
-  return new Directory(MIRROR_ROOT, `${safeName}-${hash}`);
+  return new Directory(getMirrorRoot(), `${safeName}-${hash}`);
 }
 
 function resolveEntry(root: Directory, relativePath: string) {

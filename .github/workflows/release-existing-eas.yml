@@ -1,0 +1,48 @@
+name: Release Existing EAS APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+
+      - name: Install EAS CLI
+        run: npm install --global eas-cli
+
+      - name: Download existing EAS APK
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build:download \
+            --platform android \
+            --id 82538d3c-c6d7-488e-bd5c-33ce8b6d9bf3 \
+            --output "./ajiro-agent-1.1.5.apk"
+
+      - name: Verify APK
+        run: |
+          test -s "./ajiro-agent-1.1.5.apk"
+          ls -lh "./ajiro-agent-1.1.5.apk"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.5
+          name: Ajiro Agent v1.1.5
+          files: ./ajiro-agent-1.1.5.apk
+          body_path: .release-notes.md
+          generate_release_notes: true
+          prerelease: false

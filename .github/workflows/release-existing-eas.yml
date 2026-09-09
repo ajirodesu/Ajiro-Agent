@@ -21,8 +21,17 @@ jobs:
           node-version: 22.23.1
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Install EAS CLI
         run: npm install --global eas-cli
+
+      - name: Verify EAS authentication
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas whoami
 
       - name: Download existing EAS APK
         env:
@@ -30,7 +39,6 @@ jobs:
         shell: bash
         run: |
           mkdir -p eas-download
-
           cd eas-download
 
           eas build:download \
@@ -46,9 +54,6 @@ jobs:
 
           mv "$APK_PATH" ../ajiro-agent-1.1.5.apk
 
-          echo "APK downloaded successfully:"
-          ls -lh ../ajiro-agent-1.1.5.apk
-
       - name: Verify APK
         shell: bash
         run: |
@@ -57,7 +62,6 @@ jobs:
             exit 1
           fi
 
-          file "./ajiro-agent-1.1.5.apk"
           ls -lh "./ajiro-agent-1.1.5.apk"
 
       - name: Publish GitHub Release

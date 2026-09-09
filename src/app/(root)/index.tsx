@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ClipboardList,
   FolderOpen,
+  Gauge,
   Paperclip,
   Plus,
   Server,
@@ -22,6 +23,8 @@ import {
 } from "lucide-react-native";
 import Animated, {
   Easing,
+  Extrapolation,
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -38,6 +41,7 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   Platform,
   Pressable,
   Text,
@@ -141,8 +145,36 @@ const REASONING_EFFORT_OPTIONS: {  value: ReasoningEffort;
   },
 ];
 
+// Effort picker shown from the composer + menu: the five selectable effort
+// levels. (The legacy REASONING_EFFORT_OPTIONS above stays for label lookup
+// of older stored values like Off/Minimal.)
+const EFFORT_OPTIONS: {
+  value: ReasoningEffort;
+  label: string;
+  description: string;
+}[] = [
+  { value: "low", label: "Low", description: "Fast answers, light reasoning" },
+  {
+    value: "medium",
+    label: "Medium",
+    description: "Balance reasoning quality and speed (default)",
+  },
+  { value: "high", label: "High", description: "Deeper reasoning, slower" },
+  {
+    value: "xhigh",
+    label: "Extra",
+    description: "Maximum reasoning before Max",
+  },
+  {
+    value: "max",
+    label: "Max",
+    description: "Highest effort the model supports",
+  },
+];
+
 function getReasoningEffortLabel(effort: ReasoningEffort) {
   return (
+    EFFORT_OPTIONS.find((option) => option.value === effort)?.label ??
     REASONING_EFFORT_OPTIONS.find((option) => option.value === effort)?.label ??
     "Medium"
   );
@@ -208,17 +240,41 @@ function logComposerDebug(label: string, data: Record<string, unknown>) {
 }
 
 /**
- * Pill input geometry (ChatGPT-style 4-state auto-resize):
- * 1. empty â€” compact bar (textarea collapses, buttons define the height)
- * 2. typing â€” slightly taller single line
- * 3. wrapping â€” grows one line at a time (leading-6 = 24px per line)
- * 4. MAX_LINES reached â€” locks and the field scrolls internally.
+ * Pill input geometry (ChatGPT-style auto-resize).
+ *
+ * The constants below are *derived from*, not hardcoded around, the control
+ * and text dimensions. `COMPOSER_EMPTY_HEIGHT` (52) is the initial reference:
+ * it equals max(control, single-line text) + vertical row padding * 2, i.e.
+ * max(40, 24) + 6 * 2 = 52. Calibrate by editing the *_SIZE / *_PADDING
+ * values, not EMPTY_HEIGHT itself.
+ *
+ * States:
+ * 1. empty — compact bar (textarea collapses, the 40dp buttons define height)
+ * 2. typing — single line, same bar height as empty
+ * 3. wrapping — grows one 24dp line at a time, radius softening 26 -> 20
+ * 4. cap reached — textarea locks at the cap and scrolls internally.
  */
-const COMPOSER_LINE_HEIGHT = 24;
-const COMPOSER_EMPTY_HEIGHT = 24;
-const COMPOSER_TYPED_MIN_HEIGHT = 40;
-const COMPOSER_MAX_LINES = 10;
-const COMPOSER_INPUT_MAX_HEIGHT = COMPOSER_LINE_HEIGHT * COMPOSER_MAX_LINES + 4;
+const COMPOSER_CONTROL_SIZE = 40;
+const COMPOSER_TEXT_LINE_HEIGHT = 24;
+const COMPOSER_PADDING_VERTICAL = 6;
+const COMPOSER_EMPTY_HEIGHT =
+  Math.max(COMPOSER_CONTROL_SIZE, COMPOSER_TEXT_LINE_HEIGHT) +
+  COMPOSER_PADDING_VERTICAL * 2; // 52
+const COMPOSER_CORNER_RADIUS = COMPOSER_EMPTY_HEIGHT / 2; // 26
+const COMPOSER_EXPANDED_CORNER_RADIUS = 20;
+// Single configurable 10-line design cap (bar level), additionally clamped to
+// a viewport ratio at runtime so the bar never covers the chat on short
+// screens or with the keyboard open.
+const COMPOSER_DESIGN_MAX_HEIGHT = COMPOSER_TEXT_LINE_HEIGHT * 10 + 4;
+const COMPOSER_MAX_VIEWPORT_RATIO = 0.45;
+// Reference-measured horizontal margins (381px-wide reference screenshot,
+// screen-edge to capsule-edge): keyboard closed -> 36px margins (309 wide,
+// centered); keyboard open -> 12px margins (~356 wide). The chat column
+// already pads 16px per side, so these are the *additional* margins applied
+// to the composer wrapper (negative pulls back into the column padding).
+const CHAT_COLUMN_PADDING = 16;
+const COMPOSER_MARGIN_KEYBOARD_HIDDEN = 36 - CHAT_COLUMN_PADDING; // 20
+const COMPOSER_MARGIN_KEYBOARD_VISIBLE = 12 - CHAT_COLUMN_PADDING; // -4
 
 function useSyncedComposerSelection() {
   const [selection, setSelection] = useState({ end: 0, start: 0 });
@@ -558,7 +614,7 @@ export default function Screen() {
           <View className="h-14 flex-row items-center justify-between gap-sp-3">
             <SidebarTrigger
               accessibilityLabel="Open sidebar"
-              className="h-10 w-10 border-0 bg-transparent"
+              className="h-10 w-10"
             />
             <ContextRingButton
               onPress={() => {
@@ -581,7 +637,7 @@ export default function Screen() {
                 >
                   <ActivityIndicator color={theme.textSecondary} size="small" />
                   <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
-                    Loading chatâ€¦
+                    Loading chat…
                   </Text>
                 </View>
               ) : visibleMessages.length === 0 && currentModel ? (
@@ -660,7 +716,7 @@ export default function Screen() {
               canSend={ready && currentModel !== null}
               currentModelLabel={
                 currentModel
-                  ? `${currentModel.providerLabel} Â· ${currentModel.label}`
+                  ? `${currentModel.providerLabel} · ${currentModel.label}`
                   : null
               }
               activeModels={chatInputModelOptions}
@@ -980,6 +1036,9 @@ const ChatInput = memo(function ChatInput({
   const composerRef = useRef<TextInput>(null);
   const [prompt, setPrompt] = useState("");
   const [composerContentHeight, setComposerContentHeight] = useState(0);
+  // Visible keyboard height so the growth cap tracks the space actually left
+  // on screen (short devices, landscape, floating keyboards).
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
   const [plusMenuDrawerOpen, setPlusMenuDrawerOpen] = useState(false);
   const [modelsDrawerOpen, setModelsDrawerOpen] = useState(false);
@@ -1029,26 +1088,66 @@ const ChatInput = memo(function ChatInput({
     setPrompt("");
   }, [editDraft, editNonce]);
 
-  // Auto-resize (4 states): compact when empty, slightly taller on the first
-  // typed line, grows line-by-line while wrapping, then locks at the 10-line
-  // max and scrolls internally. Shrinks back down as text is removed, and all
-  // height changes animate via reanimated â€” no snapping.
+  // Auto-resize: compact when empty, same bar height on the first typed
+  // line, grows line-by-line while wrapping, then locks at the cap and
+  // scrolls internally. Shrinks back down as text is removed, and all height
+  // changes animate via reanimated — no snapping.
+  //
+  // Note the animated value drives the *inner text-area wrapper*; the 40dp
+  // buttons plus row padding floor the outer bar at COMPOSER_EMPTY_HEIGHT.
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      "keyboardDidShow",
+      (event) => {
+        setKeyboardHeight(event.endCoordinates.height);
+      },
+    );
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  // Bar-level cap: the 10-line design max, further clamped to a viewport
+  // ratio of the space left above the keyboard so the bar never swallows the
+  // chat on short screens. Recomputed on rotation via useWindowDimensions and
+  // whenever keyboard insets change via keyboardHeight below.
+  const composerBarMaxHeight = Math.min(
+    COMPOSER_DESIGN_MAX_HEIGHT,
+    Math.floor(
+      Math.max(0, screenHeight - keyboardHeight) * COMPOSER_MAX_VIEWPORT_RATIO,
+    ),
+  );
+  const composerTextMaxHeight = Math.max(
+    COMPOSER_TEXT_LINE_HEIGHT,
+    composerBarMaxHeight - COMPOSER_PADDING_VERTICAL * 2,
+  );
   const hasComposerText = prompt.trim().length > 0;
+  // Measured text height (falls back to one line before the first measure).
+  // Width, keyboard, and font-scale changes reflow the text, which fires
+  // onContentSizeChange and feeds back in here — no line-count presets.
+  const composerMeasuredTextHeight =
+    composerContentHeight > 0
+      ? composerContentHeight
+      : COMPOSER_TEXT_LINE_HEIGHT;
+  // requiredHeight = measuredTextHeight + internalPadding (+ controlArea is
+  // covered: the 40dp buttons floor the outer bar at 52 via flex layout).
+  // finalHeight = clamp(requiredHeight, 52, maximumAvailableHeight).
   const composerTargetHeight = !hasComposerText
-    ? COMPOSER_EMPTY_HEIGHT
+    ? COMPOSER_TEXT_LINE_HEIGHT
     : Math.min(
-        COMPOSER_INPUT_MAX_HEIGHT,
-        Math.max(
-          COMPOSER_TYPED_MIN_HEIGHT,
-          composerContentHeight > 0 ? composerContentHeight : COMPOSER_LINE_HEIGHT,
-        ),
+        composerTextMaxHeight,
+        Math.max(COMPOSER_CONTROL_SIZE, composerMeasuredTextHeight),
       );
   const composerScrollEnabled =
-    hasComposerText && composerContentHeight > COMPOSER_INPUT_MAX_HEIGHT;
-  // The capsule is a full pill at single-line height; corners soften to a
-  // rounded rectangle once the text wraps to a second line.
-  const composerMultiline = composerContentHeight > COMPOSER_LINE_HEIGHT + 4;
-  const composerAnimatedHeight = useSharedValue(COMPOSER_EMPTY_HEIGHT);
+    hasComposerText && composerContentHeight > composerTextMaxHeight;
+  // The capsule interpolates from a full pill to a rounded rectangle as
+  // the animated height grows; see composerCapsuleStyle below.
+  const composerAnimatedHeight = useSharedValue(COMPOSER_TEXT_LINE_HEIGHT);
 
   useEffect(() => {
     composerAnimatedHeight.value = withTiming(composerTargetHeight, {
@@ -1059,6 +1158,37 @@ const ChatInput = memo(function ChatInput({
 
   const composerAnimatedStyle = useAnimatedStyle(() => ({
     height: composerAnimatedHeight.value,
+  }));
+
+  // Corner-radius interpolation: full pill at single-line height, softening
+  // to a rounded rectangle as the capsule grows (matches the reference).
+  const composerCapsuleStyle = useAnimatedStyle(() => ({
+    borderRadius: interpolate(
+      composerAnimatedHeight.value,
+      [COMPOSER_TEXT_LINE_HEIGHT, composerTextMaxHeight],
+      [COMPOSER_CORNER_RADIUS, COMPOSER_EXPANDED_CORNER_RADIUS],
+      Extrapolation.CLAMP,
+    ),
+  }));
+
+  // Reference-measured width: 36px screen-edge margins while the keyboard is
+  // closed (309 wide, centered), 12px once it opens (~356 wide). Animated so
+  // the capsule breathes wider instead of snapping. Cursor and draft live in
+  // React state (prompt + selection sync), so resizing never disturbs them.
+  const keyboardVisible = keyboardHeight > 0;
+  const composerMargin = useSharedValue(COMPOSER_MARGIN_KEYBOARD_HIDDEN);
+
+  useEffect(() => {
+    composerMargin.value = withTiming(
+      keyboardVisible
+        ? COMPOSER_MARGIN_KEYBOARD_VISIBLE
+        : COMPOSER_MARGIN_KEYBOARD_HIDDEN,
+      { duration: 130, easing: Easing.inOut(Easing.quad) },
+    );
+  }, [composerMargin, keyboardVisible]);
+
+  const composerWidthStyle = useAnimatedStyle(() => ({
+    marginHorizontal: composerMargin.value,
   }));
 
   const composerTrigger = useMemo(() => getComposerTrigger(prompt), [prompt]);
@@ -1572,7 +1702,7 @@ const ChatInput = memo(function ChatInput({
       {
         id: "reasoning-level",
         icon: <Brain color={theme.text} size={16} />,
-        label: "Reasoning level",
+        label: "Effort",
         onPress: () => {
           clearTriggerText();
           setReasoningDrawerOpen(true);
@@ -1686,7 +1816,7 @@ const ChatInput = memo(function ChatInput({
   ]);
 
   return (
-    <View className="relative">
+    <Animated.View className="relative" style={[composerWidthStyle]}>
       <View className="gap-sp-3">
         {activeFolderLabel ? (
           <View className="self-start rounded-full border border-border bg-card px-sp-3 py-2 dark:border-border-dark dark:bg-card-dark">
@@ -1739,7 +1869,7 @@ const ChatInput = memo(function ChatInput({
                   <AttachmentDescription>
                     {file.mimeType ?? "Unknown type"}
                     {typeof file.size === "number"
-                      ? ` Â· ${file.size} bytes`
+                      ? ` · ${file.size} bytes`
                       : ""}
                   </AttachmentDescription>
                 </AttachmentContent>
@@ -1784,22 +1914,13 @@ const ChatInput = memo(function ChatInput({
           </View>
         ) : null}
 
-        <View
-          className={cn(
-            "border border-border bg-input dark:border-border-dark dark:bg-input-dark",
-            composerMultiline ? "rounded-3xl" : "rounded-pill",
-          )}
+        <Animated.View
+          className="border border-border bg-input dark:border-border-dark dark:bg-input-dark"
+          style={[composerCapsuleStyle]}
         >
-          {/* Icons stay vertically centered at single-line height and anchor
-              to the bottom corners as the capsule grows; the container itself
-              has no hover/press effect â€” feedback is isolated to the icon
-              buttons. */}
-          <View
-            className={cn(
-              "flex-row px-2 py-1.5",
-              composerMultiline ? "items-end" : "items-center",
-            )}
-          >
+          {/* The + and send buttons anchor to the bottom row while the text
+              area grows upward; feedback is isolated to the icon buttons. */}
+          <View className="flex-row items-end px-2 py-1.5">
             <Pressable
               accessibilityLabel="Attachments and tools"
               accessibilityRole="button"
@@ -1827,8 +1948,11 @@ const ChatInput = memo(function ChatInput({
                   cursorColor="#0A84FF"
                   onChangeText={setPrompt}
                   onContentSizeChange={(event) => {
-                    setComposerContentHeight(
-                      event.nativeEvent.contentSize.height,
+                    const nextHeight = event.nativeEvent.contentSize.height;
+                    // Guard: only re-render when the measured height actually
+                    // changed, so typing never loops through setState.
+                    setComposerContentHeight((current) =>
+                      current === nextHeight ? current : nextHeight,
                     );
                   }}
                   onSelectionChange={composerSelection.onSelectionChange}
@@ -1883,7 +2007,7 @@ const ChatInput = memo(function ChatInput({
               )}
             </Pressable>
           </View>
-        </View>
+        </Animated.View>
       </View>
 
       <Drawer
@@ -1943,8 +2067,8 @@ const ChatInput = memo(function ChatInput({
               icon={<ClipboardList color={theme.text} size={16} />}
               label={
                 conversationAgentName === "build"
-                  ? "Select agent Â· Build"
-                  : `Select agent Â· ${conversationAgentName}`
+                  ? "Select agent · Build"
+                  : `Select agent · ${conversationAgentName}`
               }
               onPress={() => {
                 setPlusMenuDrawerOpen(false);
@@ -1971,8 +2095,17 @@ const ChatInput = memo(function ChatInput({
               subtitle={`${activeMcpServerIds.size} active in this chat`}
             />
             <ComposerMenuRow
+              icon={<Gauge color={theme.text} size={16} />}
+              label={`Effort · ${getReasoningEffortLabel(reasoningEffort)}`}
+              onPress={() => {
+                setPlusMenuDrawerOpen(false);
+                setReasoningDrawerOpen(true);
+              }}
+              subtitle="Low, Medium, High, Extra, or Max for this chat"
+            />
+            <ComposerMenuRow
               icon={<Brain color={theme.text} size={16} />}
-              label={`Tool approval Â· ${toolApprovalMode === "ask" ? "Ask" : "Allow"}`}
+              label={`Tool approval · ${toolApprovalMode === "ask" ? "Ask" : "Allow"}`}
               onPress={() => {
                 setPlusMenuDrawerOpen(false);
                 setApprovalModeDrawerOpen(true);
@@ -2117,13 +2250,14 @@ const ChatInput = memo(function ChatInput({
       <Drawer onOpenChange={setReasoningDrawerOpen} open={reasoningDrawerOpen}>
         <DrawerContent showCloseButton showHandle>
           <DrawerHeader>
-            <DrawerTitle>Reasoning level</DrawerTitle>
+            <DrawerTitle>Effort</DrawerTitle>
             <DrawerDescription>
-              Choose how much reasoning the model should use for this chat.
+              Choose how much effort the model should use for this chat.
+              Higher effort reasons longer.
             </DrawerDescription>
           </DrawerHeader>
           <DrawerBody contentContainerClassName="gap-sp-2 pb-sp-4">
-            {REASONING_EFFORT_OPTIONS.map((option) => (
+            {EFFORT_OPTIONS.map((option) => (
               <DrawerSelectRow
                 key={option.value}
                 onPress={() => {
@@ -2266,7 +2400,7 @@ const ChatInput = memo(function ChatInput({
                     subtitle={
                       skill.autoMatch
                         ? skill.description
-                          ? `Auto Â· ${skill.description}`
+                          ? `Auto · ${skill.description}`
                           : "Auto"
                         : (skill.description ?? undefined)
                     }
@@ -2391,7 +2525,7 @@ const ChatInput = memo(function ChatInput({
           </DrawerBody>
         </DrawerContent>
       </Drawer>
-    </View>
+    </Animated.View>
   );
 });
 

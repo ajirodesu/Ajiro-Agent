@@ -191,11 +191,11 @@ export function AppSidebar() {
 
   return (
     <>
-      <Sidebar className="border-0">
+      <Sidebar>
         {/* Fixed header — matches the main page header height (h-14). */}
         <SidebarHeader className="h-14 shrink-0 flex-row items-center justify-between pb-0">
-          <Text className="font-sans text-xl font-semibold text-foreground dark:text-foreground-dark">
-            Ajiro
+          <Text className="font-sans text-[28px] font-bold text-foreground dark:text-foreground-dark">
+            Ajiro Agent
           </Text>
           <View className="flex-row items-center gap-sp-2">
             <CircularIconButton
@@ -203,16 +203,6 @@ export function AppSidebar() {
               onPress={() => setSearchOpen(true)}
             >
               <Search
-                color={theme.text}
-                size={PRIMARY_ICON_SIZE}
-                strokeWidth={1.8}
-              />
-            </CircularIconButton>
-            <CircularIconButton
-              accessibilityLabel="New chat"
-              onPress={startNewChat}
-            >
-              <SquarePen
                 color={theme.text}
                 size={PRIMARY_ICON_SIZE}
                 strokeWidth={1.8}
@@ -322,18 +312,18 @@ export function AppSidebar() {
           </View>
         </SidebarContent>
 
-        {/* Fixed bottom bar — New Chat pill + settings, never scroll away. */}
+        {/* Fixed bottom bar — blue Chat pill + settings, never scroll away. */}
         <SidebarFooter
-          className="flex-row items-center gap-sp-3"
+          className="flex-row items-center justify-between gap-sp-3"
           style={{
             backgroundColor: theme.background,
             paddingBottom: insets.bottom + 8,
           }}
         >
           <Pressable
-            accessibilityLabel="New chat"
+            accessibilityLabel="Chat"
             accessibilityRole="button"
-            className="h-11 flex-1 flex-row items-center gap-sp-2 rounded-full px-sp-4"
+            className="h-[52px] flex-row items-center gap-sp-2 rounded-full px-6"
             onPress={startNewChat}
             style={({ pressed }) => ({
               backgroundColor: ACCENT_BLUE,
@@ -342,7 +332,7 @@ export function AppSidebar() {
           >
             <SquarePen color="#FFFFFF" size={18} strokeWidth={2} />
             <Text className="font-sans text-base font-semibold text-white">
-              New Chat
+              Chat
             </Text>
           </Pressable>
           <CircularIconButton

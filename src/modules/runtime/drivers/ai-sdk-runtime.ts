@@ -10,6 +10,20 @@ import { createStreamSmoother } from "@/modules/runtime/stream-smoother";
 /** No text deltas for this long â†’ treat the provider stream as stalled. */
 export const STREAM_STALL_TIMEOUT_MS = 60_000;
 
+/**
+ * Map the stored effort level to a reasoning value the AI SDK accepts.
+ * "max" has no SDK equivalent, so it lands on the highest known level.
+ */
+function toAISDKReasoning(
+  reasoning: GenerateModelTextStreamParams["reasoning"],
+) {
+  if (reasoning === undefined || reasoning === "max") {
+    return reasoning === "max" ? "xhigh" : undefined;
+  }
+
+  return reasoning;
+}
+
 export function shouldUseStreamingAISDK() {
   return (
     Platform.OS === "web" || Platform.OS === "android" || Platform.OS === "ios"
@@ -178,7 +192,7 @@ async function generateViaAISDKWithContinuation(
       },
       providerOptions: params.providerOptions as any,
       ...(params.reasoning !== undefined
-        ? { reasoning: params.reasoning }
+        ? { reasoning: toAISDKReasoning(params.reasoning) }
         : {}),
       stopWhen: ({ steps }) => steps.length >= params.maxToolSteps,
       system: params.system,
@@ -354,7 +368,9 @@ export async function generateViaAISDKNonStreaming(
       params.onEvent?.("tool-execution-start", event);
     },
     providerOptions: params.providerOptions as any,
-    ...(params.reasoning !== undefined ? { reasoning: params.reasoning } : {}),
+    ...(params.reasoning !== undefined
+      ? { reasoning: toAISDKReasoning(params.reasoning) }
+      : {}),
     stopWhen: ({ steps }) => steps.length >= params.maxToolSteps,
     system: params.system,
     tools: params.tools,

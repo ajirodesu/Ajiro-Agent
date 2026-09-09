@@ -2,13 +2,16 @@
   "expo": {
     "name": "Ajiro Agent",
     "slug": "ajiro-agent",
-    "version": "1.1.4",
+    "version": "1.1.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ajiro-agent",
     "userInterfaceStyle": "automatic",
     "owner": "ajirodesu",
-    "platforms": ["android", "ios"],
+    "platforms": [
+      "android",
+      "ios"
+    ],
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.ajirohq.ajiroagent",
@@ -37,9 +40,8 @@
       ],
       "adaptiveIcon": {
         "backgroundColor": "#000000",
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundImage": "./assets/images/icon.png",
-        "monochromeImage": "./assets/images/icon.png"
+        "foregroundImage": "./assets/images/adaptive-foreground.png",
+        "monochromeImage": "./assets/images/adaptive-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.ajirohq.ajiroagent"
@@ -63,7 +65,7 @@
         {
           "backgroundColor": "#000000",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200
+          "resizeMode": "contain"
         }
       ],
       "expo-sqlite",
@@ -76,9 +78,9 @@
       "expo-font",
       "expo-image",
       "expo-secure-store",
-      "expo-sharing",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

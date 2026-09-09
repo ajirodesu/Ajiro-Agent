@@ -97,7 +97,60 @@ const CORE_SCHEMA_REPAIR_SQL = `
 
   CREATE UNIQUE INDEX IF NOT EXISTS agents_name_unique ON agents(name);
   CREATE INDEX IF NOT EXISTS idx_agents_updated_at ON agents(updated_at);
+
+  CREATE TABLE IF NOT EXISTS coding_checkpoints (
+    id TEXT PRIMARY KEY NOT NULL,
+    conversation_id TEXT NOT NULL,
+    run_id TEXT,
+    project_uri TEXT NOT NULL,
+    label TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_coding_checkpoints_conversation_created_at
+  ON coding_checkpoints(conversation_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS skill_files (
+    id TEXT PRIMARY KEY NOT NULL,
+    skill_id TEXT NOT NULL,
+    path TEXT NOT NULL,
+    content TEXT NOT NULL,
+    mime_type TEXT,
+    size INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS skill_files_skill_id_path_unique
+  ON skill_files(skill_id, path);
+  CREATE INDEX IF NOT EXISTS idx_skill_files_skill_id
+  ON skill_files(skill_id);
 `;
+
+/**
+ * Idempotent ADD COLUMN: no-op when the column already exists. Fresh installs
+ * create the full schema up front and upgrades run per-version steps, so both
+ * paths can reach the same ALTER — without this guard the second arrival
+ * throws "duplicate column name" and aborts the whole migration (which
+ * previously stranded the app on the loading screen).
+ */
+async function ensureColumn(
+  db: SQLiteDatabase,
+  table: string,
+  column: string,
+  definition: string,
+) {
+  const columns = await db.getAllAsync<{ name: string }>(
+    `PRAGMA table_info(${table})`,
+  );
+
+  if (!columns.some((entry) => entry.name === column)) {
+    await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${definition};`);
+  }
+}
 
 export async function migrateAppDatabase(db: SQLiteDatabase) {
   const versionRow = await db.getFirstAsync<{ user_version: number }>(
@@ -431,9 +484,8 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
   }
 
   if (currentVersion === 2) {
+    await ensureColumn(db, "messages", "metadata_json", "metadata_json TEXT");
     await db.execAsync(`
-      ALTER TABLE messages ADD COLUMN metadata_json TEXT;
-
       CREATE TABLE IF NOT EXISTS workspace_files (
         id TEXT PRIMARY KEY NOT NULL,
         display_name TEXT NOT NULL,
@@ -452,19 +504,23 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
   }
 
   if (currentVersion === 3) {
-    await db.execAsync(`
-      ALTER TABLE conversations
-      ADD COLUMN selected_file_ids_json TEXT NOT NULL DEFAULT '[]';
-    `);
+    await ensureColumn(
+      db,
+      "conversations",
+      "selected_file_ids_json",
+      "selected_file_ids_json TEXT NOT NULL DEFAULT '[]'",
+    );
 
     currentVersion = 4;
   }
 
   if (currentVersion === 4) {
-    await db.execAsync(`
-      ALTER TABLE conversations
-      ADD COLUMN external_folder_session_json TEXT;
-    `);
+    await ensureColumn(
+      db,
+      "conversations",
+      "external_folder_session_json",
+      "external_folder_session_json TEXT",
+    );
 
     currentVersion = 5;
   }
@@ -583,20 +639,30 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
   }
 
   if (currentVersion === 9) {
-    await db.execAsync(`
-      ALTER TABLE conversations
-      ADD COLUMN reasoning_effort TEXT NOT NULL DEFAULT 'medium';
-    `);
+    await ensureColumn(
+      db,
+      "conversations",
+      "reasoning_effort",
+      "reasoning_effort TEXT NOT NULL DEFAULT 'medium'",
+    );
 
     currentVersion = 10;
   }
 
   if (currentVersion === 10) {
-    await db.execAsync(`
-      ALTER TABLE agent_runs ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;
-      ALTER TABLE agent_runs ADD COLUMN max_retries INTEGER NOT NULL DEFAULT 3;
-      ALTER TABLE agent_runs ADD COLUMN last_retry_at TEXT;
-    `);
+    await ensureColumn(
+      db,
+      "agent_runs",
+      "retry_count",
+      "retry_count INTEGER NOT NULL DEFAULT 0",
+    );
+    await ensureColumn(
+      db,
+      "agent_runs",
+      "max_retries",
+      "max_retries INTEGER NOT NULL DEFAULT 3",
+    );
+    await ensureColumn(db, "agent_runs", "last_retry_at", "last_retry_at TEXT");
 
     currentVersion = 11;
   }
@@ -611,10 +677,12 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
   }
 
   if (currentVersion === 12) {
-    await db.execAsync(`
-      ALTER TABLE conversations
-      ADD COLUMN selected_mcp_server_ids_json TEXT;
-    `);
+    await ensureColumn(
+      db,
+      "conversations",
+      "selected_mcp_server_ids_json",
+      "selected_mcp_server_ids_json TEXT",
+    );
 
     currentVersion = 13;
   }
@@ -656,10 +724,7 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
   }
 
   if (currentVersion === 15) {
-    await db.execAsync(`
-      ALTER TABLE conversations
-      ADD COLUMN pinned_at TEXT;
-    `);
+    await ensureColumn(db, "conversations", "pinned_at", "pinned_at TEXT");
 
     currentVersion = 16;
   }
@@ -676,13 +741,18 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
   }
 
   if (currentVersion === 17) {
-    await db.execAsync(`
-      ALTER TABLE conversations
-      ADD COLUMN agent_mode TEXT NOT NULL DEFAULT 'build';
-
-      ALTER TABLE agent_runs
-      ADD COLUMN agent_mode TEXT NOT NULL DEFAULT 'build';
-    `);
+    await ensureColumn(
+      db,
+      "conversations",
+      "agent_mode",
+      "agent_mode TEXT NOT NULL DEFAULT 'build'",
+    );
+    await ensureColumn(
+      db,
+      "agent_runs",
+      "agent_mode",
+      "agent_mode TEXT NOT NULL DEFAULT 'build'",
+    );
 
     currentVersion = 18;
   }

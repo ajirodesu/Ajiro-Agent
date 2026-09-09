@@ -22,7 +22,13 @@ export function McpScreenHeader({
     <View className="flex-row items-center gap-sp-2">
       <Button
         leftIcon={<ChevronLeft color={theme.text} size={16} />}
-        onPress={() => router.replace(backHref as never)}
+        onPress={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace(backHref as never);
+          }
+        }}
         size="icon-xs"
         variant="ghost"
       />

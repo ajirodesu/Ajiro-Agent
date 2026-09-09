@@ -155,7 +155,13 @@ export default function SettingsAgentEditorScreen() {
         <View className="flex-row items-center gap-sp-2">
           <Button
             leftIcon={<ChevronLeft color={theme.text} size={16} />}
-            onPress={() => router.push("/settings/agents" as never)}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.push("/settings/agents" as never);
+              }
+            }}
             size="icon-xs"
             variant="ghost"
           />
@@ -338,13 +344,19 @@ export default function SettingsAgentEditorScreen() {
   return (
     <Container scroll contentClassName="gap-sp-4 py-sp-4" includeBottomTabInset={false}>
       <View className="flex-row items-center gap-sp-2">
-        <Button
-          leftIcon={<ChevronLeft color={theme.text} size={16} />}
-          onPress={() => router.push("/settings/agents" as never)}
-          size="icon-xs"
-          variant="ghost"
-        />
-        <View className="min-w-0 flex-1">
+          <Button
+            leftIcon={<ChevronLeft color={theme.text} size={16} />}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.push("/settings/agents" as never);
+              }
+            }}
+            size="icon-xs"
+            variant="ghost"
+          />
+          <View className="min-w-0 flex-1">
           <Text className="font-sans text-xl font-semibold text-foreground dark:text-foreground-dark">
             {isNew ? "New agent" : current.name || "Agent"}
           </Text>

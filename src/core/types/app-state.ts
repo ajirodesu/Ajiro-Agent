@@ -16,7 +16,7 @@ export type MessageStatus = "streaming" | "completed" | "failed";
 export type ModelKind = "chat" | "small";
 export type ModelRef = `${string}/${string}`;
 export type ReasoningEffort =
-  "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export type ModelTransport =
   | "anthropic"
   | "codexResponses"

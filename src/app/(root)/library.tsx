@@ -201,7 +201,11 @@ export default function LibraryScreen() {
         <Button
           leftIcon={<ChevronLeft color={theme.text} size={16} />}
           onPress={() => {
-            router.push("/");
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.push("/");
+            }
           }}
           size="icon-xs"
           variant="ghost"

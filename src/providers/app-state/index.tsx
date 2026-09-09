@@ -1089,11 +1089,14 @@ Your output must be:
                     setModelDiscoveryInProgress(false);
                 });
         } catch (hydrateError) {
+            // Never leave the app stuck on the loading screen: surface the
+            // error in the UI shell instead of hanging on `ready === false`.
             setError(
                 hydrateError instanceof Error
                     ? hydrateError.message
                     : "Failed to hydrate app state.",
             );
+            setReady(true);
         } finally {
             setHydrating(false);
         }
@@ -3258,8 +3261,8 @@ Your output must be:
                 createExecutionTimelineEvent({
                     createdAt: timestamp,
                     detail: model
-                        ? `${model.providerLabel} Ãƒâ€šÃ‚Â· ${model.label}`
-                        : `${run.providerId} Ãƒâ€šÃ‚Â· ${run.modelId}`,
+                        ? `${model.providerLabel} Ãƒâ€šÃ‚· ${model.label}`
+                        : `${run.providerId} Ãƒâ€šÃ‚· ${run.modelId}`,
                     kind: "run",
                     status: "pending",
                     title: "Run queued",
@@ -3615,7 +3618,7 @@ Your output must be:
             appliedSkillIds,
             executionTimeline: [
                 createExecutionTimelineEvent({
-                    detail: `${model.providerLabel} Ãƒâ€šÃ‚Â· ${model.label}`,
+                    detail: `${model.providerLabel} Ãƒâ€šÃ‚· ${model.label}`,
                     kind: "run",
                     status: "pending",
                     title: "Run queued",
@@ -3778,7 +3781,7 @@ Your output must be:
                 appliedSkillIds,
                 executionTimeline: [
                     createExecutionTimelineEvent({
-                        detail: `${model.providerLabel} Ãƒâ€šÃ‚Â· ${model.label}`,
+                        detail: `${model.providerLabel} Ãƒâ€šÃ‚· ${model.label}`,
                         kind: "run",
                         status: "pending",
                         title: "Run queued",

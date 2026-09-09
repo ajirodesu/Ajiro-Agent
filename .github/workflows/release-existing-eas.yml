@@ -39,24 +39,30 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         shell: bash
         run: |
-          mkdir -p eas-download
-          cd eas-download
-
           eas build:download \
             --build-id 82538d3c-c6d7-488e-bd5c-33ce8b6d9bf3 \
             --non-interactive
 
-          APK_PATH=$(find . -maxdepth 1 -type f -name "*.apk" -print -quit)
+          echo "Searching for downloaded APK..."
+
+          APK_PATH=$(find /tmp/runner/eas-cli-nodejs/eas-build-run-cache \
+            -type f \
+            -name "*.apk" \
+            -print \
+            -quit)
 
           if [ -z "$APK_PATH" ]; then
-            echo "No APK was downloaded."
+            echo "No APK was found in the EAS download cache."
             exit 1
           fi
 
-          mv "$APK_PATH" ../ajiro-agent-1.1.5.apk
+          echo "Found APK:"
+          echo "$APK_PATH"
 
-          echo "APK downloaded successfully:"
-          ls -lh ../ajiro-agent-1.1.5.apk
+          cp "$APK_PATH" "./ajiro-agent-1.1.5.apk"
+
+          echo "APK copied successfully:"
+          ls -lh "./ajiro-agent-1.1.5.apk"
 
       - name: Verify APK
         shell: bash

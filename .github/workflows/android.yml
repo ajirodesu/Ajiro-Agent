@@ -9,9 +9,11 @@ on:
 permissions:
   contents: write
 
+# Do NOT cancel an active release build when another commit is pushed.
+# This is important because EAS builds run in the cloud and can take time.
 concurrency:
-  group: android-release-${{ github.ref }}
-  cancel-in-progress: true
+  group: android-release
+  cancel-in-progress: false
 
 jobs:
   build-and-release:
@@ -21,7 +23,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -35,13 +37,13 @@ jobs:
         run: |
           CURRENT_VERSION=$(node -p "require('./package.json').version")
 
-          if git rev-parse HEAD^ >/dev/null 2>&1; then
-            PREVIOUS_VERSION=$(
-              git show HEAD^:package.json |
-              node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version"
-            )
-          else
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             PREVIOUS_VERSION=""
+          else
+            PREVIOUS_VERSION=$(
+              git show "${{ github.event.before }}:package.json" 2>/dev/null |
+              node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version" 2>/dev/null || true
+            )
           fi
 
           echo "Current version: $CURRENT_VERSION"
@@ -49,14 +51,12 @@ jobs:
 
           echo "VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
 
-          # Always build when manually triggered.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "Manual workflow run detected. Build will run."
             exit 0
           fi
 
-          # Build only when package.json version changes on main.
           if [ "$CURRENT_VERSION" = "$PREVIOUS_VERSION" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "Version unchanged. Skipping release."
@@ -125,7 +125,6 @@ jobs:
           fi
 
           echo "Resolved APK URL successfully."
-
           echo "APK_URL=$APK_URL" >> "$GITHUB_ENV"
 
       - name: Download APK

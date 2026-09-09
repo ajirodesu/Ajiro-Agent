@@ -27,15 +27,37 @@ jobs:
       - name: Download existing EAS APK
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        shell: bash
         run: |
+          mkdir -p eas-download
+
+          cd eas-download
+
           eas build:download \
-            --platform android \
-            --id 82538d3c-c6d7-488e-bd5c-33ce8b6d9bf3 \
-            --output "./ajiro-agent-1.1.5.apk"
+            --build-id 82538d3c-c6d7-488e-bd5c-33ce8b6d9bf3 \
+            --non-interactive
+
+          APK_PATH=$(find . -maxdepth 1 -type f -name "*.apk" -print -quit)
+
+          if [ -z "$APK_PATH" ]; then
+            echo "No APK was downloaded."
+            exit 1
+          fi
+
+          mv "$APK_PATH" ../ajiro-agent-1.1.5.apk
+
+          echo "APK downloaded successfully:"
+          ls -lh ../ajiro-agent-1.1.5.apk
 
       - name: Verify APK
+        shell: bash
         run: |
-          test -s "./ajiro-agent-1.1.5.apk"
+          if [ ! -s "./ajiro-agent-1.1.5.apk" ]; then
+            echo "APK is missing or empty."
+            exit 1
+          fi
+
+          file "./ajiro-agent-1.1.5.apk"
           ls -lh "./ajiro-agent-1.1.5.apk"
 
       - name: Publish GitHub Release
@@ -45,5 +67,5 @@ jobs:
           name: Ajiro Agent v1.1.5
           files: ./ajiro-agent-1.1.5.apk
           body_path: .release-notes.md
-          generate_release_notes: true
+          generate_release_notes: false
           prerelease: false

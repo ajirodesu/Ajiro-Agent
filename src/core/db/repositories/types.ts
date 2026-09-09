@@ -118,6 +118,9 @@ export interface MessageRepository {
   getNextSequence(conversationId: string): Promise<number>;
   listByConversation(conversationId: string): Promise<StoredMessage[]>;
   listStreaming(): Promise<StoredMessage[]>;
+  /** Delete every message of a conversation with `sequence < given`. Used by
+      context compaction to trim older history. */
+  deleteBefore(conversationId: string, sequence: number): Promise<void>;
   recoverInterruptedStreams(): Promise<void>;
   updateContent(input: {
     content: string;

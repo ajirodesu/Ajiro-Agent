@@ -1,80 +1,77 @@
 /**
- * Ajiro Agent sidebar ? slide-out navigation drawer.
- * Near-black panel (#0D0D0D-#141414 equivalent via sidebar tokens), scrollable
- * content with sticky bottom bar (Chat / avatar / voice), thin right-edge
- * divider, five primary nav items, Pinned + Recents sections with an optional
- * unread badge on any row.
+ * Ajiro Agent sidebar — slide-out navigation drawer styled after the ChatGPT
+ * mobile app: solid black panel, fixed header (wordmark left, bordered
+ * circular search + new-chat buttons right), scrollable nav rows and
+ * conversation lists (Pinned / Recents, no divider lines), and a fixed bottom
+ * bar with a blue "New Chat" pill and a circular settings button.
  *
  * Author: AjiroDesu
  */
-import { Button } from "@/components/ui/button";
+import { usePathname, useRouter } from "expo-router";
+import {
+  AtSign,
+  Clock,
+  EllipsisVertical,
+  FolderOpen,
+  Images,
+  Library,
+  Pencil,
+  Pin,
+  PinOff,
+  Search,
+  Settings,
+  SquarePen,
+  Trash2,
+  X,
+} from "lucide-react-native";
+import { useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal as ReactNativeModal,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useElapsedSeconds } from "@/components/ui/processing-status";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import {
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTitle,
-} from "@/components/ui/modal";
 import {
   Sidebar,
-  SidebarClose,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
+import type { Conversation } from "@/core/types/app-state";
+import { cn } from "@/core/utils";
 import { useAppState } from "@/hooks/use-app-state";
 import { useChat } from "@/hooks/use-chat";
-import { usePathname, useRouter } from "expo-router";
-import {
-  Activity,
-  AudioLines,
-  BookMarked,
-  Check,
-  Clock,
-  EllipsisVertical,
-  FolderOpen,
-  Images,
-  Library,
-  AtSign,
-  MessageSquare,
-  Pencil,
-  Pin,
-  PinOff,
-  Search,
-  SquarePen,
-  Trash2,
-  X,
-} from "lucide-react-native";
-import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
-
-import type { Conversation } from "@/core/types/app-state";
-import { ACTIVE_AGENT_RUN_STATUSES } from "@/modules/runtime/run-manager";
-import { useElapsedSeconds } from "@/components/ui/processing-status";
 import { useTheme } from "@/hooks/use-theme";
+import {
+  markSidebarReturnPending,
+} from "@/modules/navigation/sidebar-return";
+import { ACTIVE_AGENT_RUN_STATUSES } from "@/modules/runtime/run-manager";
 
+/** Accent used by the New Chat pill, matching the reference app. */
 const ACCENT_BLUE = "#0A84FF";
 
 /**
- * Primary nav. "Images" and "Projects" map to real app destinations:
+ * Shared icon size for primary chrome icons (search, settings, sidebar
+ * toggle, usage/context) so they render identically across the app.
+ */
+export const PRIMARY_ICON_SIZE = 20;
+
+/**
+ * Primary nav rows. "Images" and "Projects" map to real app destinations:
  * Images -> Library filtered to image files, Projects -> coding settings
- * (project folder/sandbox management). Library/Scheduled/Plugins map to their
- * existing screens. If the product later grows dedicated Images/Projects
- * screens, swap the routes here.
+ * (project folder/sandbox management).
  */
 const NAV_ITEMS: { label: string; route: string; icon: typeof Library }[] = [
   { label: "Images", route: "/library?category=images", icon: Images },
@@ -88,121 +85,103 @@ export function AppSidebar() {
   const theme = useTheme();
   const pathname = usePathname();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { setOpen: setSidebarOpen } = useSidebar();
   const { agentRuns, hydrating } = useAppState();
   const {
     conversations,
     createConversation,
     currentConversation,
     renameConversation,
-    runStatusByConversation,
     selectConversation,
   } = useChat();
+
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [tasksOpen, setTasksOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Conversation | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
 
-  const activeRuns = agentRuns.filter((run) =>
-    ACTIVE_AGENT_RUN_STATUSES.includes(run.status),
+  const activeRuns = useMemo(
+    () => agentRuns.filter((run) => ACTIVE_AGENT_RUN_STATUSES.includes(run.status)),
+    [agentRuns],
   );
 
-  const query = searchQuery.trim().toLowerCase();
-  const visibleConversations = query
-    ? conversations.filter((conversation) =>
-        conversation.title.toLowerCase().includes(query),
-      )
-    : conversations;
+  const runByConversation = useMemo(() => {
+    const map = new Map<string, (typeof activeRuns)[number]>();
+    for (const run of activeRuns) {
+      if (!map.has(run.conversationId)) {
+        map.set(run.conversationId, run);
+      }
+    }
+    return map;
+  }, [activeRuns]);
 
-  const pinnedConversations = visibleConversations.filter(
-    (conversation) => conversation.pinnedAt,
+  const visibleChats = useMemo(
+    () =>
+      [...conversations]
+        .filter((conversation) => !conversation.archivedAt)
+        .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)),
+    [conversations],
   );
-  const otherConversations = visibleConversations.filter(
-    (conversation) => !conversation.pinnedAt,
+
+  const pinnedChats = useMemo(
+    () => visibleChats.filter((conversation) => conversation.pinnedAt),
+    [visibleChats],
   );
 
-  function renderConversation(conversation: (typeof conversations)[number]) {
-    const active = conversation.id === currentConversation?.id;
-    const runStatus = runStatusByConversation[conversation.id];
-    const showBadge =
-      runStatus === "running" ||
-      runStatus === "queued" ||
-      runStatus === "resumable" ||
-      runStatus === "waiting_for_approval" ||
-      runStatus === "waiting_for_question";
+  const recentChats = useMemo(
+    () => visibleChats.filter((conversation) => !conversation.pinnedAt),
+    [visibleChats],
+  );
 
-    return (
-      <SidebarMenuItem key={conversation.id}>
-        <SidebarClose asChild>
-          <SidebarMenuButton
-            fullBleed
-            isActive={active}
-            onPress={() => {
-              selectConversation(conversation.id)
-                .then(() => {
-                  router.push("/");
-                })
-                .catch(console.error);
-            }}
-          >
-            <View className="min-w-0 flex-1 flex-row items-center gap-sp-2">
-              {conversation.pinnedAt ? (
-                <MessageSquare
-                  color={theme.textSecondary}
-                  size={20}
-                  strokeWidth={1.75}
-                />
-              ) : null}
-              <Text
-                className="min-w-0 flex-1 font-sans text-base text-[#ECECEC]"
-                numberOfLines={1}
-              >
-                {conversation.title}
-              </Text>
-              <View className="shrink-0 items-center justify-center">
-                {showBadge ? (
-                  <View className="mr-1 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ACCENT_BLUE }} />
-                ) : runStatus === "retrying" ? (
-                  <ActivityIndicator color={theme.textSecondary} size="small" />
-                ) : (
-                  <ChatOptions
-                    conversationId={conversation.id}
-                    color={theme.textSecondary}
-                    pinned={Boolean(conversation.pinnedAt)}
-                    pinnedCount={conversations.filter((item) => item.pinnedAt).length}
-                    onRename={() => {
-                      setRenameTarget(conversation);
-                      setRenameTitle(conversation.title);
-                      setRenameError(null);
-                    }}
-                  />
-                )}
-              </View>
-            </View>
-          </SidebarMenuButton>
-        </SidebarClose>
-      </SidebarMenuItem>
+  const searchResults = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return visibleChats;
+    return visibleChats.filter((conversation) =>
+      conversation.title.toLowerCase().includes(query),
     );
-  }
+  }, [searchQuery, visibleChats]);
+
+  /**
+   * Navigate to a screen opened from the sidebar: close the drawer underneath
+   * the pushed screen and record a pending return so back navigation lands on
+   * the open sidebar instead of the collapsed main page.
+   */
+  const openRoute = (route: string) => {
+    setSidebarOpen(false);
+    markSidebarReturnPending();
+    router.push(route as never);
+  };
+
+  const startNewChat = () => {
+    createConversation().catch(console.error);
+  };
+
+  const openChat = (conversationId: string) => {
+    selectConversation(conversationId)
+      .then(() => openRoute("/"))
+      .catch(console.error);
+  };
 
   const submitRename = () => {
-    if (!renameTarget || !renameTitle.trim() || renaming) {
+    const nextTitle = renameTitle.trim();
+    if (!renameTarget || !nextTitle) {
+      setRenameError("Enter a name for this chat.");
       return;
     }
 
     setRenaming(true);
-    setRenameError(null);
-    renameConversation(renameTarget.id, renameTitle)
+    renameConversation(renameTarget.id, nextTitle)
       .then(() => {
         setRenameTarget(null);
+        setRenameTitle("");
+        setRenameError(null);
       })
-      .catch((renameFailure) => {
+      .catch((error) => {
         setRenameError(
-          renameFailure instanceof Error
-            ? renameFailure.message
-            : "Could not rename this chat.",
+          error instanceof Error ? error.message : "Rename failed.",
         );
       })
       .finally(() => {
@@ -210,375 +189,313 @@ export function AppSidebar() {
       });
   };
 
-  const openNewChat = () => {
-    createConversation()
-      .then(() => {
-        router.push("/");
-      })
-      .catch(console.error);
-  };
-
   return (
     <>
-      <Sidebar>
-        <SidebarContent>
-          <SidebarHeader className="min-h-14 flex-row items-center justify-between gap-sp-2 pb-sp-2">
-            <Text
-              className="min-w-0 flex-1 font-sans text-[28px] font-bold text-foreground dark:text-foreground-dark"
-              numberOfLines={1}
+      <Sidebar className="border-0">
+        {/* Fixed header — matches the main page header height (h-14). */}
+        <SidebarHeader className="h-14 shrink-0 flex-row items-center justify-between pb-0">
+          <Text className="font-sans text-xl font-semibold text-foreground dark:text-foreground-dark">
+            Ajiro
+          </Text>
+          <View className="flex-row items-center gap-sp-2">
+            <CircularIconButton
+              accessibilityLabel="Search chats"
+              onPress={() => setSearchOpen(true)}
             >
-              Ajiro Agent
-            </Text>
-            <View className="shrink-0 flex-row items-center gap-sp-2">
-              {activeRuns.length > 0 ? (
-                <Pressable
-                  accessibilityLabel={`${activeRuns.length} background tasks running`}
-                  accessibilityRole="button"
-                  className="h-10 w-10 items-center justify-center rounded-full"
-                  onPress={() => {
-                    setTasksOpen((current) => !current);
-                  }}
-                  style={({ pressed }) => ({
-                    backgroundColor: "#1C1C1E",
-                    opacity: pressed ? 0.85 : 1,
-                  })}
-                >
-                  <View className="relative">
-                    <Activity color={ACCENT_BLUE} size={24} strokeWidth={1.75} />
-                    <View
-                      className="absolute -right-2 -top-1 h-4 min-w-4 items-center justify-center rounded-pill px-1"
-                      style={{ backgroundColor: ACCENT_BLUE }}
-                    >
-                      <Text className="font-sans text-[10px] font-bold text-white">
-                        {activeRuns.length}
-                      </Text>
-                    </View>
-                  </View>
-                </Pressable>
-              ) : null}
-              <HeaderIconButton
-                accessibilityLabel="Search chats"
-                onPress={() => {
-                  setSearchOpen((current) => !current);
-                  setSearchQuery("");
-                }}
-              >
-                <Search color={theme.text} size={22} strokeWidth={1.75} />
-              </HeaderIconButton>
-              <SidebarClose asChild>
-                <HeaderIconButton accessibilityLabel="New chat" onPress={openNewChat}>
-                  <MessageSquarePlusIcon />
-                </HeaderIconButton>
-              </SidebarClose>
-            </View>
-          </SidebarHeader>
-
-          {/* Structural divider: below the top bar row */}
-          <View className="h-px w-full bg-border dark:bg-border-dark" />
-
-          {searchOpen ? (
-            <View className="pb-sp-2">
-              <Input
-                accessibilityLabel="Search chats"
-                autoFocus
-                onChangeText={setSearchQuery}
-                placeholder="Search chats…"
-                value={searchQuery}
+              <Search
+                color={theme.text}
+                size={PRIMARY_ICON_SIZE}
+                strokeWidth={1.8}
               />
-            </View>
-          ) : null}
+            </CircularIconButton>
+            <CircularIconButton
+              accessibilityLabel="New chat"
+              onPress={startNewChat}
+            >
+              <SquarePen
+                color={theme.text}
+                size={PRIMARY_ICON_SIZE}
+                strokeWidth={1.8}
+              />
+            </CircularIconButton>
+          </View>
+        </SidebarHeader>
 
-          {tasksOpen ? (
-            <View className="mb-sp-2 gap-sp-1 rounded-ui border border-border p-sp-2 dark:border-border-dark">
-              <View className="flex-row items-center justify-between px-1 pb-1">
-                <Text className="font-sans text-sm font-bold text-muted-foreground dark:text-muted-foreground-dark">
-                  Background tasks
-                </Text>
+        <SidebarContent
+          contentContainerClassName="gap-sp-4 pb-sp-3"
+          style={{ marginTop: 8 }}
+        >
+          {/* Nav rows — icon + label pairs, left-aligned, no separators. */}
+          <View className="gap-sp-1">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                pathname === item.route.split("?")[0] ||
+                (item.route.startsWith("/settings/coding") &&
+                  pathname.startsWith("/settings/coding"));
+              return (
                 <Pressable
-                  accessibilityLabel="Close background tasks"
+                  key={item.label}
                   accessibilityRole="button"
-                  hitSlop={8}
+                  className={cn(
+                    "h-11 flex-row items-center gap-sp-3 rounded-ui px-sp-2",
+                    isActive && "bg-secondary dark:bg-secondary-dark",
+                  )}
                   onPress={() => {
-                    setTasksOpen(false);
+                    openRoute(item.route);
                   }}
+                  style={({ pressed }) => (pressed ? { opacity: 0.85 } : null)}
                 >
-                  <X color={theme.textSecondary} size={16} />
+                  <Icon
+                    color={theme.text}
+                    size={PRIMARY_ICON_SIZE}
+                    strokeWidth={1.8}
+                  />
+                  <Text className="font-sans text-base text-foreground dark:text-foreground-dark">
+                    {item.label}
+                  </Text>
                 </Pressable>
-              </View>
-              {activeRuns.length > 0 ? (
-                activeRuns.map((run) => (
-                  <BackgroundTaskRow key={run.id} run={run} />
-                ))
-              ) : (
-                <Text className="px-1 pb-1 font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
-                  No active tasks.
-                </Text>
-              )}
+              );
+            })}
+          </View>
+
+          {/* Pinned — hidden entirely when there are no pinned chats. */}
+          {pinnedChats.length > 0 ? (
+            <View className="gap-sp-1">
+              <SectionLabel>Pinned</SectionLabel>
+              {pinnedChats.map((conversation) => (
+                <ConversationRow
+                  key={conversation.id}
+                  active={
+                    currentConversation?.id === conversation.id &&
+                    pathname === "/"
+                  }
+                  conversation={conversation}
+                  run={runByConversation.get(conversation.id)}
+                  onSelect={() => {
+                    openChat(conversation.id);
+                  }}
+                  onRename={() => {
+                    setRenameTarget(conversation);
+                    setRenameTitle(conversation.title);
+                    setRenameError(null);
+                  }}
+                />
+              ))}
             </View>
           ) : null}
 
-          <SidebarGroup className="pb-sp-1">
-            <SidebarMenu className="gap-0">
-              {NAV_ITEMS.map((item) => {
-                const basePath = item.route.split("?")[0];
-                const active =
-                  pathname === basePath || pathname.startsWith(`${basePath}/`);
-
-                return (
-                  <SidebarMenuItem key={item.route}>
-                    <SidebarClose asChild>
-                      <SidebarMenuButton
-                        fullBleed
-                        isActive={active}
-                        leftIcon={
-                          <item.icon color={theme.text} size={24} strokeWidth={1.75} />
-                        }
-                        onPress={() => {
-                          router.push(item.route as never);
-                        }}
-                      >
-                        <Text className="font-sans text-base font-medium text-foreground dark:text-foreground-dark">
-                          {item.label}
-                        </Text>
-                      </SidebarMenuButton>
-                    </SidebarClose>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroup>
-
-          {/* Structural divider: between the menu block and Pinned/Recents */}
-          <View className="h-px w-full bg-border dark:bg-border-dark" />
-
-          {pinnedConversations.length > 0 ? (
-            <SidebarGroup className="pt-sp-4">
-              <SidebarGroupLabel className="!px-0 text-sm font-medium normal-case tracking-normal text-muted-foreground dark:text-muted-foreground-dark">
-                Pinned
-              </SidebarGroupLabel>
-              <SidebarMenu>
-                {pinnedConversations.map(renderConversation)}
-              </SidebarMenu>
-            </SidebarGroup>
-          ) : null}
-
-          {pinnedConversations.length > 0 ? (
-            <View className="h-px w-full bg-border dark:bg-border-dark" />
-          ) : null}
-
-          <SidebarGroup className="pt-sp-4 pb-32">
-            <SidebarGroupLabel className="!px-0 text-sm font-medium normal-case tracking-normal text-muted-foreground dark:text-muted-foreground-dark">
-              Recents
-            </SidebarGroupLabel>
-            <SidebarMenu>
-              {otherConversations.map(renderConversation)}
-              {visibleConversations.length === 0 ? (
-                <SidebarMenuItem>
-                  {hydrating ? (
-                    <View className="flex-row items-center gap-sp-2 px-sp-2 py-sp-2">
-                      <ActivityIndicator
-                        color={theme.textSecondary}
-                        size="small"
-                      />
-                      <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
-                        Loading chats…
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text className="px-sp-2 font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
-                      {query
-                        ? "No chats match your search."
-                        : "No chats yet. Start a new conversation."}
-                    </Text>
-                  )}
-                </SidebarMenuItem>
-              ) : null}
-            </SidebarMenu>
-          </SidebarGroup>
+          {/* Recents */}
+          <View className="gap-sp-1">
+            <SectionLabel>Recents</SectionLabel>
+            {recentChats.map((conversation) => (
+              <ConversationRow
+                key={conversation.id}
+                active={
+                  currentConversation?.id === conversation.id && pathname === "/"
+                }
+                conversation={conversation}
+                run={runByConversation.get(conversation.id)}
+                onSelect={() => {
+                  openChat(conversation.id);
+                }}
+                onRename={() => {
+                  setRenameTarget(conversation);
+                  setRenameTitle(conversation.title);
+                  setRenameError(null);
+                }}
+              />
+            ))}
+            {!hydrating && visibleChats.length === 0 ? (
+              <Text className="px-sp-2 py-sp-2 font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
+                Your conversations will appear here.
+              </Text>
+            ) : null}
+            {hydrating ? (
+              <View className="flex-row items-center gap-sp-2 px-sp-2 py-sp-2">
+                <ActivityIndicator size="small" color={theme.textSecondary} />
+                <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
+                  Loading chats
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </SidebarContent>
 
+        {/* Fixed bottom bar — New Chat pill + settings, never scroll away. */}
         <SidebarFooter
-          className="z-10 bg-sidebar dark:bg-sidebar-dark"
+          className="flex-row items-center gap-sp-3"
           style={{
-            paddingBottom: 12,
+            backgroundColor: theme.background,
+            paddingBottom: insets.bottom + 8,
           }}
         >
-          <View className="flex-row items-center justify-between px-sp-1">
-            <SidebarClose asChild>
-              <Pressable
-                accessibilityLabel="New chat"
-                accessibilityRole="button"
-                className="flex-row items-center gap-2 rounded-pill"
-                onPress={openNewChat}
-                style={({ pressed }) => ({
-                  backgroundColor: pressed ? "#2563EB" : ACCENT_BLUE,
-                  paddingHorizontal: 18,
-                  paddingVertical: 10,
-                })}
-              >
-                <SquarePen color="#FFFFFF" size={16} strokeWidth={1.75} />
-                <Text className="font-sans text-base font-semibold text-white">
-                  Chat
-                </Text>
-              </Pressable>
-            </SidebarClose>
-
-            <Pressable
-              accessibilityLabel="Account"
-              accessibilityRole="button"
-              className="h-10 w-10 items-center justify-center overflow-hidden rounded-full"
-              onPress={() => {
-                router.push("/settings");
-              }}
-              style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
-            >
-              <View
-                className="h-10 w-10 items-center justify-center rounded-full"
-                style={{ backgroundColor: "#3A3A3C" }}
-              >
-                <BookMarked color="#FFFFFF" size={20} strokeWidth={1.75} />
-              </View>
-            </Pressable>
-
-            <Pressable
-              accessibilityLabel="Voice mode"
-              accessibilityRole="button"
-              className="h-10 w-10 items-center justify-center rounded-full"
-              onPress={() => {
-                Alert.alert(
-                  "Voice mode",
-                  "Voice conversations are coming soon.",
-                );
-              }}
-              style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
-            >
-              <View
-                className="h-10 w-10 items-center justify-center rounded-full"
-                style={{ backgroundColor: "#1C1C1E" }}
-              >
-                <AudioLines color={ACCENT_BLUE} size={20} strokeWidth={1.75} />
-              </View>
-            </Pressable>
-          </View>
+          <Pressable
+            accessibilityLabel="New chat"
+            accessibilityRole="button"
+            className="h-11 flex-1 flex-row items-center gap-sp-2 rounded-full px-sp-4"
+            onPress={startNewChat}
+            style={({ pressed }) => ({
+              backgroundColor: ACCENT_BLUE,
+              opacity: pressed ? 0.85 : 1,
+            })}
+          >
+            <SquarePen color="#FFFFFF" size={18} strokeWidth={2} />
+            <Text className="font-sans text-base font-semibold text-white">
+              New Chat
+            </Text>
+          </Pressable>
+          <CircularIconButton
+            accessibilityLabel="Settings"
+            onPress={() => {
+              setSearchOpen(false);
+              openRoute("/settings");
+            }}
+          >
+            <Settings
+              color={theme.text}
+              size={PRIMARY_ICON_SIZE}
+              strokeWidth={1.8}
+            />
+          </CircularIconButton>
         </SidebarFooter>
       </Sidebar>
-      <Modal
-        dismissible={!renaming}
-        onOpenChange={(open) => {
-          if (!open && !renaming) {
-            setRenameTarget(null);
-            setRenameError(null);
-          }
-        }}
-        open={renameTarget !== null}
+
+      {/* Search */}
+      <ReactNativeModal
+        animationType="slide"
+        onRequestClose={() => setSearchOpen(false)}
+        statusBarTranslucent
+        visible={searchOpen}
       >
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>Rename chat</ModalTitle>
-            <ModalDescription>
-              Choose a title that makes this chat easy to find.
-            </ModalDescription>
-          </ModalHeader>
-          <ModalBody>
-            <Input
-              accessibilityLabel="Chat title"
+        <View
+          className="flex-1 bg-background dark:bg-background-dark"
+          style={{ paddingTop: insets.top + 12 }}
+        >
+          <View className="flex-row items-center gap-sp-3 px-sp-4">
+            <Pressable
+              accessibilityLabel="Close search"
+              accessibilityRole="button"
+              className="h-10 w-10 items-center justify-center"
+              hitSlop={8}
+              onPress={() => setSearchOpen(false)}
+            >
+              <X color={theme.text} size={PRIMARY_ICON_SIZE} strokeWidth={1.8} />
+            </Pressable>
+            <TextInput
               autoFocus
-              maxLength={80}
-              onChangeText={setRenameTitle}
-              onSubmitEditing={submitRename}
-              returnKeyType="done"
-              selectTextOnFocus
+              className="h-11 flex-1 rounded-full border border-border bg-input px-sp-4 font-sans text-base text-foreground dark:border-border-dark dark:bg-input-dark dark:text-foreground-dark"
+              onChangeText={setSearchQuery}
+              placeholder="Search chats"
+              placeholderTextColor={theme.textSecondary}
+              value={searchQuery}
+            />
+          </View>
+
+          <View className="mt-sp-4 flex-1 px-sp-4">
+            {searchResults.map((conversation) => (
+              <Pressable
+                key={conversation.id}
+                accessibilityRole="button"
+                className="h-11 flex-row items-center rounded-ui px-sp-2"
+                onPress={() => {
+                  setSearchOpen(false);
+                  setSearchQuery("");
+                  openChat(conversation.id);
+                }}
+                style={({ pressed }) => (pressed ? { opacity: 0.85 } : null)}
+              >
+                <Text
+                  numberOfLines={1}
+                  className="flex-1 font-sans text-base text-foreground dark:text-foreground-dark"
+                >
+                  {conversation.title}
+                </Text>
+              </Pressable>
+            ))}
+            {searchResults.length === 0 && !hydrating ? (
+              <Text className="px-sp-2 py-sp-2 font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
+                No chats match your search.
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      </ReactNativeModal>
+
+      {/* Rename chat */}
+      <ReactNativeModal
+        animationType="fade"
+        onRequestClose={() => setRenameTarget(null)}
+        statusBarTranslucent
+        transparent
+        visible={renameTarget !== null}
+      >
+        <View className="flex-1 items-center justify-center bg-black/60 px-sp-6">
+          <View className="w-full max-w-sm rounded-card bg-card p-sp-4 dark:bg-card-dark">
+            <Text className="mb-sp-3 font-sans text-lg font-semibold text-foreground dark:text-foreground-dark">
+              Rename chat
+            </Text>
+            <TextInput
+              autoFocus
+              className="h-11 rounded-ui border border-border bg-input px-sp-3 font-sans text-base text-foreground dark:border-border-dark dark:bg-input-dark dark:text-foreground-dark"
+              onChangeText={(value) => {
+                setRenameTitle(value);
+                setRenameError(null);
+              }}
+              placeholder="Chat name"
+              placeholderTextColor={theme.textSecondary}
               value={renameTitle}
             />
             {renameError ? (
-              <Text className="font-sans text-sm text-destructive dark:text-destructive-dark">
+              <Text className="mt-sp-2 font-sans text-sm text-destructive dark:text-destructive-dark">
                 {renameError}
               </Text>
             ) : null}
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              disabled={renaming}
-              onPress={() => {
-                setRenameTarget(null);
-                setRenameError(null);
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={!renameTitle.trim()}
-              loading={renaming}
-              onPress={submitRename}
-              size="sm"
-            >
-              Rename
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+            <View className="mt-sp-4 flex-row justify-end gap-sp-2">
+              <Pressable
+                accessibilityRole="button"
+                className="h-10 items-center justify-center rounded-full px-sp-4"
+                disabled={renaming}
+                onPress={() => {
+                  setRenameTarget(null);
+                  setRenameError(null);
+                }}
+              >
+                <Text className="font-sans text-base font-medium text-muted-foreground dark:text-muted-foreground-dark">
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                className="h-10 items-center justify-center rounded-full bg-secondary px-sp-4 dark:bg-secondary-dark"
+                disabled={renaming}
+                onPress={submitRename}
+              >
+                {renaming ? (
+                  <ActivityIndicator size="small" color={theme.text} />
+                ) : (
+                  <Text className="font-sans text-base font-semibold text-foreground dark:text-foreground-dark">
+                    Save
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </ReactNativeModal>
     </>
   );
 }
 
-function BackgroundTaskRow({
-  run,
-}: {
-  run: {
-    conversationId: string;
-    input: string;
-    startedAt: string;
-    status: string;
-  };
-}) {
-  const theme = useTheme();
-  const { conversations, selectConversation } = useChat();
-  const router = useRouter();
-  const elapsed = useElapsedSeconds(run.startedAt, true);
-  const conversation = conversations.find(
-    (candidate) => candidate.id === run.conversationId,
-  );
-  const isDone = run.status === "completed";
-  const isFailed = run.status === "failed" || run.status === "canceled";
-
+function SectionLabel({ children }: { children: string }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      className="flex-row items-center gap-sp-2 rounded-ui px-sp-2 py-sp-2"
-      onPress={() => {
-        selectConversation(run.conversationId)
-          .then(() => {
-            router.push("/");
-          })
-          .catch(console.error);
-      }}
-      style={({ pressed }) => (pressed ? { opacity: 0.8 } : null)}
-    >
-      <View className="w-5 items-center">
-        {isDone ? (
-          <Check color={theme.textSecondary} size={14} />
-        ) : isFailed ? (
-          <X color={theme.destructive} size={14} />
-        ) : (
-          <ActivityIndicator color={theme.textSecondary} size="small" />
-        )}
-      </View>
-      <Text
-        className="min-w-0 flex-1 font-sans text-sm text-foreground dark:text-foreground-dark"
-        numberOfLines={1}
-      >
-        {run.input || conversation?.title || "Task"}
-      </Text>
-      <Text className="font-mono text-xs text-muted-foreground dark:text-muted-foreground-dark">
-        {elapsed}s
-      </Text>
-    </Pressable>
+    <Text className="px-sp-2 pb-sp-1 font-sans text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground dark:text-muted-foreground-dark">
+      {children}
+    </Text>
   );
 }
 
-function HeaderIconButton({
+function CircularIconButton({
   accessibilityLabel,
   children,
   onPress,
@@ -591,41 +508,72 @@ function HeaderIconButton({
     <Pressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
-      className="h-10 w-10 items-center justify-center rounded-full"
+      className="h-10 w-10 items-center justify-center rounded-full border border-border dark:border-border-dark"
       onPress={onPress}
-      style={({ pressed }) => ({
-        backgroundColor: "#1C1C1E",
-        opacity: pressed ? 0.85 : 1,
-      })}
+      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
     >
       {children}
     </Pressable>
   );
 }
 
-function MessageSquarePlusIcon() {
-  // Chat-bubble outline with a small pencil overlay, per the reference.
+function ConversationRow({
+  active,
+  conversation,
+  onRename,
+  onSelect,
+  run,
+}: {
+  active: boolean;
+  conversation: Conversation;
+  onRename: () => void;
+  onSelect: () => void;
+  run?: { startedAt: string };
+}) {
+  const elapsed = useElapsedSeconds(
+    run?.startedAt ?? conversation.createdAt,
+    Boolean(run),
+  );
+
   return (
-    <View className="items-center justify-center">
-      <MessageSquare color="#FFFFFF" size={22} strokeWidth={1.75} />
-      <View
-        className="absolute -bottom-0.5 -right-1 h-3 w-3 items-center justify-center rounded-full"
-        style={{ backgroundColor: "#1C1C1E" }}
+    <View className="flex-row items-center">
+      <Pressable
+        accessibilityRole="button"
+        className={cn(
+          "h-11 min-w-0 flex-1 flex-row items-center rounded-ui px-sp-2",
+          active && "bg-secondary dark:bg-secondary-dark",
+        )}
+        onPress={onSelect}
+        style={({ pressed }) => (pressed ? { opacity: 0.85 } : null)}
       >
-        <Pencil color="#FFFFFF" size={8} strokeWidth={2.5} />
-      </View>
+        <Text
+          numberOfLines={1}
+          className="flex-1 font-sans text-base text-foreground dark:text-foreground-dark"
+        >
+          {conversation.title}
+        </Text>
+      </Pressable>
+      {run ? (
+        <Text className="px-sp-1 font-mono text-xs text-muted-foreground dark:text-muted-foreground-dark">
+          {elapsed}s
+        </Text>
+      ) : null}
+      <ChatOptions
+        conversationId={conversation.id}
+        onRename={onRename}
+        pinned={Boolean(conversation.pinnedAt)}
+        pinnedCount={2}
+      />
     </View>
   );
 }
 
 function ChatOptions({
-  color,
   conversationId,
   onRename,
   pinned,
   pinnedCount,
 }: {
-  color: string;
   conversationId: string;
   onRename: () => void;
   pinned: boolean;
@@ -636,8 +584,8 @@ function ChatOptions({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger>
-        <Pressable hitSlop={8}>
-          <EllipsisVertical size={20} color={color} />
+        <Pressable hitSlop={8} className="px-sp-1 py-sp-2">
+          <EllipsisVertical size={18} color={theme.textSecondary} />
         </Pressable>
       </DropdownMenuTrigger>
 
@@ -687,3 +635,10 @@ function ChatOptions({
     </DropdownMenu>
   );
 }
+
+
+
+
+
+
+

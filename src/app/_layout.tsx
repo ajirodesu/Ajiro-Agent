@@ -2,7 +2,6 @@ import { DismissibleBanner } from "@/components/ui/dismissible-banner";
 import { migrateAppDatabase } from "@/core/db/database";
 import { useAppState } from "@/hooks/use-app-state";
 import { useChat } from "@/hooks/use-chat";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useTheme } from "@/hooks/use-theme";
 import {
   TOOL_APPROVAL_APPROVE_ACTION_ID,
@@ -21,11 +20,14 @@ import {
 } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SQLiteProvider } from "expo-sqlite";
+import { StatusBar } from "expo-status-bar";
+import * as SystemUI from "expo-system-ui";
 import { X } from "lucide-react-native";
 import { useEffect, useRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import "./global.css";
 
 SplashScreen.preventAutoHideAsync();
@@ -256,11 +258,27 @@ function SplashScreenController() {
 }
 
 export default function MainLayout() {
-  const colorScheme = useColorScheme();
+  // The resolved color scheme comes from the shared css-interop observable.
+  // ThemePreferenceController (in AppStateProvider) sets it from the user's
+  // Theme preference ("system" | "light" | "dark"); before that it follows the
+  // device appearance. Subscribing here lets the native chrome (expo-router
+  // theme, status bar, system background) stay in sync with the app content.
+  const scheme = useColorScheme();
+  const isDark = scheme === "dark";
+
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(
+      isDark ? "#000000" : "#FFFFFF",
+    ).catch(console.error);
+  }, [isDark]);
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView
+      style={{ flex: 1, backgroundColor: isDark ? "#000000" : "#FFFFFF" }}
+    >
       <KeyboardProvider>
-        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+          <StatusBar style={isDark ? "light" : "dark"} />
           <AppQueryProvider>
             <SQLiteProvider
               databaseName="ajiro-agent.db"

@@ -453,22 +453,50 @@ export function buildUsageSnapshot(input: {
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
+    inputTokenDetails?: {
+      noCacheTokens?: number;
+      cacheReadTokens?: number;
+      cacheWriteTokens?: number;
+    } | undefined;
+    outputTokenDetails?: {
+      textTokens?: number;
+      reasoningTokens?: number;
+    } | undefined;
   };
 }) {
+  const usage = input.usage;
+  const inputDetails = usage?.inputTokenDetails;
+  const outputDetails = usage?.outputTokenDetails;
+
   return {
     providerId: input.model.providerId,
     providerLabel: input.model.providerLabel,
     modelId: input.model.modelId,
     modelLabel: input.model.label,
-    inputTokens: normalizeMetric(input.usage?.inputTokens),
-    outputTokens: normalizeMetric(input.usage?.outputTokens),
-    totalTokens: normalizeMetric(input.usage?.totalTokens),
+    inputTokens: normalizeMetric(usage?.inputTokens),
+    outputTokens: normalizeMetric(usage?.outputTokens),
+    totalTokens: normalizeMetric(usage?.totalTokens),
     costInput: null,
     costOutput: null,
     costTotal: null,
     contextWindow: normalizeMetric(input.contextWindow),
     remainingContext: null,
     contextUsagePercent: null,
+    inputTokenDetails:
+      inputDetails && typeof inputDetails === "object"
+        ? {
+            noCacheTokens: normalizeMetric(inputDetails.noCacheTokens),
+            cacheReadTokens: normalizeMetric(inputDetails.cacheReadTokens),
+            cacheWriteTokens: normalizeMetric(inputDetails.cacheWriteTokens),
+          }
+        : null,
+    outputTokenDetails:
+      outputDetails && typeof outputDetails === "object"
+        ? {
+            textTokens: normalizeMetric(outputDetails.textTokens),
+            reasoningTokens: normalizeMetric(outputDetails.reasoningTokens),
+          }
+        : null,
   } satisfies ModelUsageSnapshot;
 }
 

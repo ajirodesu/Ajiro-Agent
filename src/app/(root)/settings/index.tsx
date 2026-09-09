@@ -116,7 +116,7 @@ export default function SettingsScreen() {
         <Button
           leftIcon={<ChevronLeft color={theme.text} size={16} />}
           onPress={() => {
-            router.push("/");
+            router.back();
           }}
           size="icon-xs"
           variant="ghost"

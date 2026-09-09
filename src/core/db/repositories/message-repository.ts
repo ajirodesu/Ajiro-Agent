@@ -1,5 +1,5 @@
 import * as Crypto from "expo-crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 
 import { messages } from "@/core/db/schema";
 import { nowIso } from "@/core/db/repositories/shared";
@@ -60,6 +60,16 @@ export function createMessageRepository(db: AppDatabase): MessageRepository {
         .from(messages)
         .where(eq(messages.status, "streaming"))
         .orderBy(messages.updatedAt);
+    },
+    async deleteBefore(conversationId, sequence) {
+      await db
+        .delete(messages)
+        .where(
+          and(
+            eq(messages.conversationId, conversationId),
+            lt(messages.sequence, sequence),
+          ),
+        );
     },
     async recoverInterruptedStreams() {
       await db

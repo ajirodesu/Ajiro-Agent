@@ -45,7 +45,22 @@ import {
     handleLogin,
 } from "@/modules/providers/openai-oauth";
 import { getSupportedProviderDefinition } from "@/modules/providers";
-import { partitionSelectedFiles } from "@/modules/runtime/message-conversion";
+import {
+    convertStoredMessagesToModelMessages,
+    partitionSelectedFiles,
+} from "@/modules/runtime/message-conversion";
+import {
+    SUMMARY_PREFIX,
+    buildSummaryPrompt,
+    findPreviousSummary,
+    serializeForSummary,
+} from "@/modules/context/summarizer";
+import { selectTail } from "@/modules/context/tail";
+import {
+    estimateMessageTokens,
+    estimateMessagesTokens,
+    estimateTokens,
+} from "@/modules/context/token-estimator";
 import { modelRuntime } from "@/modules/runtime/model-runtime";
 import { createExecutionTimelineEvent } from "@/modules/runtime/run-artifacts";
 import {
@@ -128,7 +143,19 @@ import {
     upsertWorkspaceFiles,
 } from "./helpers";
 
+export type CompactConversationResult =
+    | {
+          compacted: true;
+          compactedMessages: number;
+          estimatedFreedTokens: number;
+          summaryChars: number;
+      }
+    | { compacted: false; reason: string };
+
 type AppStateContextValue = {
+    compactConversation: (
+        conversationId?: string,
+    ) => Promise<CompactConversationResult>;
     resolveNotificationApproval: (input: {
         approvalId: string;
         decision: "approve" | "deny";
@@ -2356,6 +2383,207 @@ Your output must be:
         await hydrate();
     }
 
+    async function compactConversation(
+        conversationId?: string,
+    ): Promise<CompactConversationResult> {
+        const targetId =
+            conversationId ??
+            snapshotRef.current.currentConversation?.id ??
+            null;
+
+        if (!targetId) {
+            return { compacted: false, reason: "No conversation selected." };
+        }
+
+        const busy = snapshotRef.current.agentRuns.some(
+            (run) =>
+                run.conversationId === targetId &&
+                isActiveAgentRunStatus(run.status),
+        );
+
+        if (busy) {
+            return {
+                compacted: false,
+                reason: "Wait for the current run to finish, then compact.",
+            };
+        }
+
+        const repositories = repositoriesRef.current;
+        const stored =
+            await repositories.messageRepository.listByConversation(targetId);
+        const contentMessages = stored.filter(
+            (message) =>
+                message.role === "user" || message.role === "assistant",
+        );
+
+        if (contentMessages.length < 6) {
+            return {
+                compacted: false,
+                reason: "Nothing to compact yet — the history is still short.",
+            };
+        }
+
+        const workspaceFiles = await repositories.workspaceRepository.list();
+        const converted = await convertStoredMessagesToModelMessages({
+            messages: stored,
+            supportsImageInput: false,
+            workspaceFilesById: new Map(
+                workspaceFiles.map((file) => [file.id, file]),
+            ),
+        });
+        const historyEstimate = estimateMessagesTokens(converted.messages);
+
+        if (historyEstimate < 2000) {
+            return {
+                compacted: false,
+                reason: "Nothing to compact yet — the history is still short.",
+            };
+        }
+
+        const currentModel =
+            snapshotRef.current.resolvedConfig.currentModel;
+
+        if (!currentModel) {
+            return {
+                compacted: false,
+                reason: "Connect a model first — compaction summarizes with the active model.",
+            };
+        }
+
+        if (currentModel.providerFamily === "on-device") {
+            return {
+                compacted: false,
+                reason: "On-device models cannot compact; switch to a cloud model first.",
+            };
+        }
+
+        const provider =
+            snapshotRef.current.resolvedConfig.providers.find(
+                (item) => item.id === currentModel.providerId,
+            ) ?? null;
+
+        if (!provider) {
+            return {
+                compacted: false,
+                reason: "The active model provider is unavailable.",
+            };
+        }
+
+        const previous = findPreviousSummary(converted.messages);
+        const history = previous
+            ? [
+                  ...converted.messages.slice(0, previous.index),
+                  ...converted.messages.slice(previous.index + 1),
+              ]
+            : converted.messages;
+        const window = currentModel.contextWindow ?? null;
+        const selection = selectTail({
+            messages: history,
+            preserveRecentTokens:
+                window !== null
+                    ? Math.min(
+                          8000,
+                          Math.max(2000, Math.floor(window * 0.1)),
+                      )
+                    : undefined,
+            estimate: estimateMessageTokens,
+        });
+        const tailStart = selection?.tailStartIndex ?? Math.max(0, history.length - 4);
+        // Map converted indices back to stored messages (conversion is 1:1
+        // per stored user/assistant/system message, minus the old anchor).
+        const anchorOffset = previous ? 1 : 0;
+        const headStored = stored.filter(
+            (message) =>
+                message.role === "user" ||
+                message.role === "assistant" ||
+                message.role === "system",
+        );
+        const headCount = tailStart;
+        const headStoredMessages = headStored.filter((_, convertedIndex) => {
+            const historyIndex =
+                previous && convertedIndex >= previous.index
+                    ? convertedIndex - anchorOffset
+                    : convertedIndex;
+            return historyIndex < headCount;
+        });
+
+        if (headStoredMessages.length < 2) {
+            return {
+                compacted: false,
+                reason: "Nothing to compact yet — the history is still short.",
+            };
+        }
+
+        const prompt = buildSummaryPrompt({
+            previousSummary: previous?.summary,
+            history: serializeForSummary(history.slice(0, tailStart)),
+        });
+
+        let summary: string;
+        try {
+            const result = await modelRuntime.generateTextStream({
+                maxToolSteps: 1,
+                messages: [{ role: "user", content: prompt }],
+                model: currentModel,
+                provider,
+                secretStore: secureSecretStore,
+            });
+            summary = result.text.trim().slice(0, 6000);
+        } catch (error) {
+            return {
+                compacted: false,
+                reason:
+                    error instanceof Error
+                        ? `Summarization failed: ${error.message}`
+                        : "Summarization failed.",
+            };
+        }
+
+        if (!summary) {
+            return {
+                compacted: false,
+                reason: "The model returned an empty summary.",
+            };
+        }
+
+        const sequence =
+            await repositories.messageRepository.getNextSequence(targetId);
+        await repositories.messageRepository.create({
+            content: `${SUMMARY_PREFIX}\n${summary}`,
+            conversationId: targetId,
+            role: "system",
+            sequence,
+            status: "completed",
+        });
+        await repositories.messageRepository.deleteBefore(
+            targetId,
+            sequence,
+        );
+        await hydrate();
+
+        const removedEstimate = estimateMessagesTokens(
+            headStoredMessages.length > 0
+                ? (
+                      await convertStoredMessagesToModelMessages({
+                          messages: headStoredMessages,
+                          supportsImageInput: false,
+                          workspaceFilesById: new Map(),
+                      })
+                    ).messages
+                : [],
+        );
+
+        return {
+            compacted: true,
+            compactedMessages: headStoredMessages.length,
+            estimatedFreedTokens: Math.max(
+                removedEstimate - estimateTokens(summary),
+                0,
+            ),
+            summaryChars: summary.length,
+        };
+    }
+
     async function setConversationPinned(
         conversationId: string,
         pinned: boolean,
@@ -3641,6 +3869,7 @@ Your output must be:
                 },
                 agentRuns: snapshot.agentRuns,
                 cancelRun,
+                compactConversation,
                 clearMcpServerCredentials,
                 clearProviderApiKey,
                 clearWorkspaceFiles,
@@ -3885,6 +4114,7 @@ export function useChat() {
         agentRuns: context.agentRuns,
         conversations: context.conversations,
         cancelRun: context.cancelRun,
+        compactConversation: context.compactConversation,
         currentConversationRunStatus,
         currentConversation: context.currentConversation,
         currentExternalFolderSession: context.currentExternalFolderSession,

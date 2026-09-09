@@ -1,24 +1,26 @@
 /**
- * Coding harness settings screen: exec allow-list, verify loop, and default
- * approval mode for coding sessions.
+ * Coding harness — project and tooling configuration for coding sessions:
+ * in-process exec checks, local git tooling, the verify loop, and the
+ * sandbox boundary. Opened from the sidebar (Projects).
  *
  * Author: AjiroDesu
  */
 import { useRouter } from "expo-router";
-import { ChevronLeft } from "lucide-react-native";
+import { Check, ChevronLeft } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, Switch, Text, View } from "react-native";
+
 import { Container } from "@/components/shared/container";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/core/utils";
+import { useConfig } from "@/hooks/use-config";
+import { useTheme } from "@/hooks/use-theme";
 import {
   EXEC_COMMAND_DESCRIPTIONS,
   EXEC_COMMAND_IDS,
 } from "@/modules/tools/coding/exec";
-import { cn } from "@/core/utils";
-import { useConfig } from "@/hooks/use-config";
-import { useTheme } from "@/hooks/use-theme";
 import type { CodingExecCommandId } from "@/core/services/coding/coding-settings";
 
 function CheckRow({
@@ -42,9 +44,21 @@ function CheckRow({
       disabled={disabled}
       onPress={onToggle}
     >
-      <Text className="font-sans text-base text-foreground dark:text-foreground-dark">
-        {checked ? "?" : "?"} {label}
-      </Text>
+      <View className="flex-row items-center gap-sp-2">
+        <View
+          className={cn(
+            "h-5 w-5 items-center justify-center rounded-full border",
+            checked
+              ? "border-[#0A84FF] bg-[#0A84FF]"
+              : "border-border dark:border-border-dark",
+          )}
+        >
+          {checked ? <Check color="#FFFFFF" size={13} strokeWidth={2.5} /> : null}
+        </View>
+        <Text className="font-sans text-base text-foreground dark:text-foreground-dark">
+          {label}
+        </Text>
+      </View>
       <Text className="font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
         {description}
       </Text>
@@ -77,12 +91,16 @@ export default function CodingSettingsScreen() {
   };
 
   return (
-    <Container contentClassName="gap-sp-4 py-sp-4" includeBottomTabInset={false}>
+    <Container
+      contentClassName="gap-sp-4 py-sp-4"
+      includeBottomTabInset={false}
+      scroll
+    >
       <View className="flex-row items-center gap-sp-2">
         <Button
           leftIcon={<ChevronLeft color={theme.text} size={16} />}
           onPress={() => {
-            router.push("/settings");
+            router.back();
           }}
           size="icon-xs"
           variant="ghost"
@@ -96,15 +114,15 @@ export default function CodingSettingsScreen() {
         <View className="flex-row items-center gap-sp-3 px-sp-4 py-sp-3">
           <View className="flex-1 gap-1">
             <Text className="font-sans text-base text-foreground dark:text-foreground-dark">
-              Exec tool
+              In-process checks
             </Text>
             <Text className="font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
-              Allow-listed in-process checks (typecheck, lint, grep, stats).
-              Android has no shell; nothing is executed outside the app sandbox.
+              Run typecheck, lint, grep, and project stats inside the app
+              sandbox. Nothing executes outside the granted project folder.
             </Text>
           </View>
           <Switch
-            accessibilityLabel="Enable exec tool"
+            accessibilityLabel="Enable in-process checks"
             disabled={saving}
             onValueChange={(value) => {
               apply({ execEnabled: value });
@@ -119,8 +137,8 @@ export default function CodingSettingsScreen() {
               Local git tools
             </Text>
             <Text className="font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
-              status, diff, add, commit, branch, log — via isomorphic-git on the
-              granted project folder. Remote operations use GitHub MCP.
+              Status, diff, add, commit, branch, and log on the granted project
+              folder. Remote operations run through connected MCP servers.
             </Text>
           </View>
           <Switch
@@ -141,8 +159,9 @@ export default function CodingSettingsScreen() {
               Verify loop
             </Text>
             <Text className="font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
-              After edits, run the selected checks and feed failures back to the
-              model (up to {codingSettings.verifyMaxRetries} retries).
+              After each edit, run the selected checks and feed any failures
+              back to the model (up to {codingSettings.verifyMaxRetries}{" "}
+              retries).
             </Text>
           </View>
           <Switch
@@ -177,13 +196,14 @@ export default function CodingSettingsScreen() {
             Sandbox
           </Text>
           <Text className="mt-1 font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
-            Writable paths are limited to the folder granted per chat via
-            Android&apos;s storage access framework. Network access is limited
-            to model providers and connected MCP servers. Destructive tool calls
-            follow the tool approval mode (Ask / Allow) on the chat screen.
+            Writes are limited to the project folder granted per chat through
+            the system folder picker. Network access is restricted to model
+            providers and connected MCP servers. Destructive tool actions honor
+            the tool approval setting on the chat screen.
           </Text>
         </View>
       </Card>
     </Container>
   );
 }
+

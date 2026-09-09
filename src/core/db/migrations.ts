@@ -28,6 +28,7 @@ const CORE_SCHEMA_REPAIR_SQL = `
     max_retries INTEGER NOT NULL DEFAULT 3,
     last_retry_at TEXT,
     agent_mode TEXT NOT NULL DEFAULT 'build',
+    agent_id TEXT,
     auto_approve INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id)
   );
@@ -50,6 +51,7 @@ const CORE_SCHEMA_REPAIR_SQL = `
     enabled INTEGER NOT NULL DEFAULT 1,
     conversation_id TEXT,
     external_folder_session_json TEXT,
+    agent_id TEXT,
     last_run_at TEXT,
     next_run_at TEXT,
     created_at TEXT NOT NULL,
@@ -135,6 +137,38 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
       `);
     }
 
+    // Repairs databases created before the agent_id column existed (fresh
+    // installs that jumped straight to the latest schema version included).
+    // Nullable TEXT, no default: matches the drizzle schema's optional column.
+    if (!conversationColumns.some((column) => column.name === "agent_id")) {
+      await db.execAsync(`
+        ALTER TABLE conversations
+        ADD COLUMN agent_id TEXT;
+      `);
+    }
+
+    const runColumns = await db.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(agent_runs)",
+    );
+
+    if (!runColumns.some((column) => column.name === "agent_id")) {
+      await db.execAsync(`
+        ALTER TABLE agent_runs
+        ADD COLUMN agent_id TEXT;
+      `);
+    }
+
+    const scheduleColumns = await db.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(schedules)",
+    );
+
+    if (!scheduleColumns.some((column) => column.name === "agent_id")) {
+      await db.execAsync(`
+        ALTER TABLE schedules
+        ADD COLUMN agent_id TEXT;
+      `);
+    }
+
     return;
   }
 
@@ -149,6 +183,7 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
         model_id TEXT,
         reasoning_effort TEXT NOT NULL DEFAULT 'medium',
         agent_mode TEXT NOT NULL DEFAULT 'build',
+        agent_id TEXT,
         selected_file_ids_json TEXT NOT NULL DEFAULT '[]',
         selected_mcp_server_ids_json TEXT,
         selected_skill_ids_json TEXT NOT NULL DEFAULT '[]',
@@ -292,6 +327,7 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
         max_retries INTEGER NOT NULL DEFAULT 3,
         last_retry_at TEXT,
         agent_mode TEXT NOT NULL DEFAULT 'build',
+        agent_id TEXT,
         auto_approve INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (conversation_id) REFERENCES conversations(id)
       );
@@ -332,6 +368,7 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
         enabled INTEGER NOT NULL DEFAULT 1,
         conversation_id TEXT,
         external_folder_session_json TEXT,
+        agent_id TEXT,
         last_run_at TEXT,
         next_run_at TEXT,
         created_at TEXT NOT NULL,
@@ -745,6 +782,7 @@ export async function migrateAppDatabase(db: SQLiteDatabase) {
         enabled INTEGER NOT NULL DEFAULT 1,
         conversation_id TEXT,
         external_folder_session_json TEXT,
+        agent_id TEXT,
         last_run_at TEXT,
         next_run_at TEXT,
         created_at TEXT NOT NULL,

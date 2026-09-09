@@ -141,6 +141,15 @@ export function SidebarProvider({
   );
 }
 
+/**
+ * Shared sidebar open-state hook. Screens rendered inside the SidebarProvider
+ * (via expo-router Slot) can use this to open/close the drawer, e.g. to
+ * re-open it when the user navigates back from a screen launched here.
+ */
+export function useSidebar() {
+  return useSidebarContext("useSidebar");
+}
+
 export type SidebarTriggerProps = Omit<
   ComponentPropsWithoutRef<typeof Pressable>,
   "children"

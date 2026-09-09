@@ -188,6 +188,16 @@ export type ModelUsageSnapshot = {
   contextWindow: number | null;
   remainingContext: number | null;
   contextUsagePercent: number | null;
+  /** Vercel-AI-SDK style granular breakdown (provider-dependent). */
+  inputTokenDetails?: {
+    noCacheTokens: number | null;
+    cacheReadTokens: number | null;
+    cacheWriteTokens: number | null;
+  } | null;
+  outputTokenDetails?: {
+    textTokens: number | null;
+    reasoningTokens: number | null;
+  } | null;
 };
 
 export type ModelCapabilities = {

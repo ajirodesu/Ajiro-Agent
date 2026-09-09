@@ -2,7 +2,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
 import { Image } from "expo-image";
 import { TextInputWrapper, type PasteEventPayload } from "expo-paste-input";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import {
   ArrowDown,
   ArrowUp,
@@ -11,10 +11,7 @@ import {
   Check,
   ChevronLeft,
   ClipboardList,
-  Edit,
   FolderOpen,
-  Info,
-  LayoutGrid,
   Paperclip,
   Plus,
   Server,
@@ -85,8 +82,15 @@ import {
   useMessageScrollerActions,
 } from "@/components/ui/message-scroller";
 import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import {
+  ContextRingButton,
+  ContextUsageDrawer,
+  useContextUsage,
+} from "@/components/ui/context-usage";
+import type { CompactConversationResult } from "@/providers/app-state";
 import { Textarea } from "@/components/ui/textarea";
+import { consumeSidebarReturnPending } from "@/modules/navigation/sidebar-return";
 import { isFolderPickerCancellation } from "@/core/services/external-folder/external-folder-service";
 import { resolveWorkspaceFile } from "@/core/services/workspace-file-service";
 import type {
@@ -104,14 +108,9 @@ import { listPrimaryAgents, resolveAgent } from "@/modules/agents/registry";
 import { cn } from "@/core/utils";
 import { useAppState } from "@/hooks/use-app-state";
 import { useChat } from "@/hooks/use-chat";
-import { useChatInfo } from "@/hooks/use-chat-info";
 import { useConfig } from "@/hooks/use-config";
 import { useTheme } from "@/hooks/use-theme";
 import { detectFolderIntent } from "@/modules/chat/folder-intent";
-import {
-  getSuggestions,
-  insertSuggestion,
-} from "@/modules/chat/suggestions";
 import { partitionSelectedFiles } from "@/modules/runtime/message-conversion";
 
 const REASONING_EFFORT_OPTIONS: {  value: ReasoningEffort;
@@ -210,10 +209,10 @@ function logComposerDebug(label: string, data: Record<string, unknown>) {
 
 /**
  * Pill input geometry (ChatGPT-style 4-state auto-resize):
- * 1. empty ? compact bar (textarea collapses, buttons define the height)
- * 2. typing ? slightly taller single line
- * 3. wrapping ? grows one line at a time (leading-6 = 24px per line)
- * 4. MAX_LINES reached ? locks and the field scrolls internally.
+ * 1. empty â€” compact bar (textarea collapses, buttons define the height)
+ * 2. typing â€” slightly taller single line
+ * 3. wrapping â€” grows one line at a time (leading-6 = 24px per line)
+ * 4. MAX_LINES reached â€” locks and the field scrolls internally.
  */
 const COMPOSER_LINE_HEIGHT = 24;
 const COMPOSER_EMPTY_HEIGHT = 24;
@@ -266,7 +265,19 @@ export default function Screen() {
   const router = useRouter();
   const theme = useTheme();
   const { error, ready } = useAppState();
-  const [infoDrawerOpen, setInfoDrawerOpen] = useState(false);
+  const { setOpen: setSidebarOpen } = useSidebar();
+
+  // When the user backs out of a screen opened from the sidebar (Settings,
+  // Projects, MCP servers, ...), land on the open sidebar instead of the
+  // collapsed main page.
+  useFocusEffect(
+    useCallback(() => {
+      if (consumeSidebarReturnPending()) {
+        setSidebarOpen(true);
+      }
+    }, [setSidebarOpen]),
+  );
+
   const {
     activeModels,
     currentModel,
@@ -280,13 +291,13 @@ export default function Screen() {
     toolApprovalMode,
     updateToolApprovalMode,
   } = useConfig();
-  const chatInfo = useChatInfo();
   const {
     approvePendingToolApproval,
     approveSessionPendingToolApproval,
     denyPendingToolApproval,
     clearConversationFolder,
     clearWorkspaceFiles,
+    compactConversation,
     deleteWorkspaceFile,
     currentConversation,
     currentConversationRunStatus,
@@ -324,6 +335,38 @@ export default function Screen() {
     currentConversationRunStatus === "waiting_for_question" ||
     currentConversationRunStatus === "resumable" ||
     currentConversationRunStatus === "retrying";
+  const contextUsage = useContextUsage();
+  const [contextDrawerOpen, setContextDrawerOpen] = useState(false);
+  const [compactState, setCompactState] = useState<
+    "idle" | "working" | "done" | "error"
+  >("idle");
+  const [compactResult, setCompactResult] =
+    useState<CompactConversationResult | null>(null);
+
+  const handleCompact = useCallback(async () => {
+    setCompactState("working");
+    setCompactResult(null);
+
+    try {
+      const result = await compactConversation();
+      setCompactResult(result);
+      setCompactState(result.compacted ? "done" : "error");
+    } catch (error) {
+      setCompactResult({
+        compacted: false,
+        reason:
+          error instanceof Error ? error.message : "Compaction failed.",
+      });
+      setCompactState("error");
+    }
+  }, [compactConversation]);
+
+  // System-role messages (e.g. persisted compaction summaries) drive future
+  // runs through the context pipeline but must never render as chat bubbles.
+  const visibleMessages = useMemo(
+    () => messages.filter((message) => message.role !== "system"),
+    [messages],
+  );
   const latestUserMessageId = useMemo(
     () =>
       [...messages].reverse().find((message) => message.role === "user")?.id ??
@@ -512,28 +555,18 @@ export default function Screen() {
           contentClassName="flex-1 gap-sp-4 !px-4"
           includeBottomTabInset={false}
         >
-          <View className="flex-row items-center justify-between gap-sp-3">
-            <View className="flex flex-row gap-2">
-              <SidebarTrigger accessibilityLabel="Open sidebar" />
-              <Button
-                accessibilityLabel="New chat"
-                onPress={createConversation}
-                size="icon"
-                variant="ghost"
-              >
-                <Edit color={theme.text} size={20} />
-              </Button>
-            </View>
-            <Button
-              accessibilityLabel="Chat info"
+          <View className="h-14 flex-row items-center justify-between gap-sp-3">
+            <SidebarTrigger
+              accessibilityLabel="Open sidebar"
+              className="h-10 w-10 border-0 bg-transparent"
+            />
+            <ContextRingButton
               onPress={() => {
-                setInfoDrawerOpen(true);
+                setSidebarOpen(false);
+                setContextDrawerOpen(true);
               }}
-              size="icon"
-              variant="ghost"
-            >
-              <Info color={theme.text} size={20} />
-            </Button>
+              percent={contextUsage.percent}
+            />
           </View>
 
           <MessageScrollerProvider
@@ -548,45 +581,49 @@ export default function Screen() {
                 >
                   <ActivityIndicator color={theme.textSecondary} size="small" />
                   <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
-                    Loading chat?
+                    Loading chatâ€¦
                   </Text>
+                </View>
+              ) : visibleMessages.length === 0 && currentModel ? (
+                <View className="flex-1 items-center justify-center gap-sp-6 px-sp-4">
+                  <Text className="text-center font-sans text-[28px] font-semibold leading-tight text-foreground dark:text-foreground-dark">
+                    What can I help with?
+                  </Text>
+                  <View className="flex-row flex-wrap items-center justify-center gap-sp-2">
+                    {STARTER_PROMPTS.map((prompt) => (
+                      <Pressable
+                        key={prompt}
+                        accessibilityRole="button"
+                        className="rounded-full border border-border px-sp-4 py-sp-2 dark:border-border-dark"
+                        onPress={() =>
+                          sendMessage({ content: prompt }).catch(console.error)
+                        }
+                        style={({ pressed }) => ({
+                          opacity: pressed ? 0.8 : 1,
+                        })}
+                      >
+                        <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
+                          {prompt}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
                 </View>
               ) : (
                 <>
                   <MessageScrollerList
                     contentContainerClassName="py-sp-3 pb-12"
-                    data={messages}
+                    data={visibleMessages}
                     getItemType={messageItemType}
                     keyExtractor={messageKeyExtractor}
                     renderItem={renderMessage}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={
-                      currentModel ? (
-                        <View className="gap-sp-3 py-sp-5">
-                          <View>
-                            {STARTER_PROMPTS.map((prompt) => (
-                              <Button
-                                key={prompt}
-                                className="justify-start"
-                                onPress={() =>
-                                  sendMessage({
-                                    content: prompt,
-                                  }).catch(console.error)
-                                }
-                                variant="ghost"
-                              >
-                                {prompt}
-                              </Button>
-                            ))}
-                          </View>
-                        </View>
-                      ) : (
-                        <View className="px-sp-2 py-sp-8">
-                          <Text className="font-sans text-base text-muted-foreground dark:text-muted-foreground-dark">
-                            Connect a model to start chatting.
-                          </Text>
-                        </View>
-                      )
+                      <View className="px-sp-2 py-sp-8">
+                        <Text className="font-sans text-base text-muted-foreground dark:text-muted-foreground-dark">
+                          Connect a model to start chatting.
+                        </Text>
+                      </View>
                     }
                     ListFooterComponent={MessageListFooter}
                   />
@@ -623,7 +660,7 @@ export default function Screen() {
               canSend={ready && currentModel !== null}
               currentModelLabel={
                 currentModel
-                  ? `${currentModel.providerLabel} · ${currentModel.label}`
+                  ? `${currentModel.providerLabel} Â· ${currentModel.label}`
                   : null
               }
               activeModels={chatInputModelOptions}
@@ -680,10 +717,11 @@ export default function Screen() {
               showHandle={false}
             >
               <DrawerHeader>
-                <DrawerTitle>Tool approval</DrawerTitle>
+                <DrawerTitle>Tool approval required</DrawerTitle>
                 <DrawerDescription>
-                  Paused in {pendingToolApproval?.chatTitle ?? "this chat"}{" "}
-                  until you decide.
+                  The agent is paused in{" "}
+                  {pendingToolApproval?.chatTitle ?? "this chat"} until you
+                  review this request.
                 </DrawerDescription>
               </DrawerHeader>
               <DrawerBody
@@ -801,156 +839,18 @@ export default function Screen() {
             </DrawerContent>
           </Drawer>
 
-          <Drawer onOpenChange={setInfoDrawerOpen} open={infoDrawerOpen}>
-            <DrawerContent showCloseButton showHandle>
-              <DrawerHeader>
-                <DrawerTitle>Chat info</DrawerTitle>
-                <DrawerDescription>
-                  Model, usage, context, and cost for this conversation.
-                </DrawerDescription>
-              </DrawerHeader>
-              <DrawerBody contentContainerClassName="gap-sp-3 pb-sp-4">
-                <InfoSection title="Model">
-                  <InfoRow
-                    label="Provider"
-                    value={
-                      chatInfo.currentModel?.providerLabel ?? "Unavailable"
-                    }
-                  />
-                  <InfoRow
-                    label="Selected model"
-                    value={chatInfo.currentModel?.modelLabel ?? "Unavailable"}
-                  />
-                  <InfoRow
-                    label="Reasoning"
-                    value={getReasoningEffortLabel(reasoningEffort)}
-                  />
-                </InfoSection>
-
-                <InfoSection title="Latest turn">
-                  <InfoRow
-                    label="Input tokens"
-                    value={formatTokenCount(
-                      chatInfo.latestTurn?.inputTokens ?? null,
-                    )}
-                  />
-                  <InfoRow
-                    label="Output tokens"
-                    value={formatTokenCount(
-                      chatInfo.latestTurn?.outputTokens ?? null,
-                    )}
-                  />
-                  <InfoRow
-                    label="Total tokens"
-                    value={formatTokenCount(
-                      chatInfo.latestTurn?.totalTokens ?? null,
-                    )}
-                  />
-                  <InfoRow
-                    label="Cost"
-                    value={formatCurrency(
-                      chatInfo.latestTurn?.costTotal ?? null,
-                    )}
-                  />
-                </InfoSection>
-
-                <InfoSection
-                  subtitle={
-                    chatInfo.conversationTotals?.isPartial
-                      ? "Partial data"
-                      : undefined
-                  }
-                  title="Conversation totals"
-                >
-                  <InfoRow
-                    label="Input tokens"
-                    value={formatTokenCount(
-                      chatInfo.conversationTotals?.inputTokens ?? null,
-                    )}
-                  />
-                  <InfoRow
-                    label="Output tokens"
-                    value={formatTokenCount(
-                      chatInfo.conversationTotals?.outputTokens ?? null,
-                    )}
-                  />
-                  <InfoRow
-                    label="Total tokens"
-                    value={formatTokenCount(
-                      chatInfo.conversationTotals?.totalTokens ?? null,
-                    )}
-                  />
-                  <InfoRow
-                    label="Cost"
-                    value={formatCurrency(
-                      chatInfo.conversationTotals?.costTotal ?? null,
-                    )}
-                  />
-                </InfoSection>
-
-                <InfoSection title="Context">
-                  <InfoRow
-                    label="Context window"
-                    value={formatTokenCount(
-                      chatInfo.latestTurn?.contextWindow ??
-                        chatInfo.currentModel?.contextWindow ??
-                        null,
-                    )}
-                  />
-                  <InfoRow
-                    label="Used"
-                    value={formatTokenCount(
-                      chatInfo.latestTurn?.totalTokens ?? null,
-                    )}
-                  />
-                  <InfoRow
-                    label="Remaining"
-                    value={formatTokenCount(
-                      chatInfo.latestTurn?.remainingContext ?? null,
-                    )}
-                  />
-                  <InfoRow
-                    label="Usage"
-                    value={formatPercent(
-                      chatInfo.latestTurn?.contextUsagePercent ?? null,
-                    )}
-                  />
-                </InfoSection>
-              </DrawerBody>
-            </DrawerContent>
-          </Drawer>
+          <ContextUsageDrawer
+            compactResult={compactResult}
+            compactState={compactState}
+            onCompact={handleCompact}
+            onOpenChange={setContextDrawerOpen}
+            open={contextDrawerOpen}
+            usage={contextUsage}
+          />
         </Container>
       </KeyboardAvoidingView>
     </ChatErrorBoundary>
   );
-}
-
-function formatTokenCount(value: number | null) {
-  if (value === null) {
-    return "Unavailable";
-  }
-
-  return Math.round(value).toLocaleString();
-}
-
-function formatCurrency(value: number | null) {
-  if (value === null) {
-    return "Unavailable";
-  }
-
-  if (value > 0 && value < 0.000001) {
-    return "< $0.000001";
-  }
-
-  return `$${value.toFixed(value < 0.01 ? 6 : 4)}`;
-}
-
-function formatPercent(value: number | null) {
-  if (value === null) {
-    return "Unavailable";
-  }
-
-  return `${value.toFixed(1)}%`;
 }
 
 function formatToolName(toolName: string) {
@@ -962,45 +862,6 @@ function formatToolName(toolName: string) {
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/[-_]+/g, " ")
     .replace(/\b\w/g, (match) => match.toUpperCase());
-}
-
-function InfoSection({
-  children,
-  subtitle,
-  title,
-}: {
-  children: ReactNode;
-  subtitle?: string;
-  title: string;
-}) {
-  return (
-    <View className="gap-sp-2 rounded-ui border border-border bg-card px-sp-4 py-sp-3 dark:border-border-dark dark:bg-card-dark">
-      <View className="gap-1">
-        <Text className="font-sans text-sm font-semibold text-foreground dark:text-foreground-dark">
-          {title}
-        </Text>
-        {subtitle ? (
-          <Text className="font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
-            {subtitle}
-          </Text>
-        ) : null}
-      </View>
-      {children}
-    </View>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View className="flex-row items-center justify-between gap-sp-3">
-      <Text className="font-sans text-sm text-muted-foreground dark:text-muted-foreground-dark">
-        {label}
-      </Text>
-      <Text className="max-w-44 text-right font-sans text-sm text-foreground dark:text-foreground-dark">
-        {value}
-      </Text>
-    </View>
-  );
 }
 
 const ChatInput = memo(function ChatInput({
@@ -1121,7 +982,6 @@ const ChatInput = memo(function ChatInput({
   const [composerContentHeight, setComposerContentHeight] = useState(0);
   const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
   const [plusMenuDrawerOpen, setPlusMenuDrawerOpen] = useState(false);
-  const [quickPanelOpen, setQuickPanelOpen] = useState(false);
   const [modelsDrawerOpen, setModelsDrawerOpen] = useState(false);
   const [reasoningDrawerOpen, setReasoningDrawerOpen] = useState(false);
   const [agentsDrawerOpen, setAgentsDrawerOpen] = useState(false);
@@ -1172,7 +1032,7 @@ const ChatInput = memo(function ChatInput({
   // Auto-resize (4 states): compact when empty, slightly taller on the first
   // typed line, grows line-by-line while wrapping, then locks at the 10-line
   // max and scrolls internally. Shrinks back down as text is removed, and all
-  // height changes animate via reanimated ? no snapping.
+  // height changes animate via reanimated â€” no snapping.
   const hasComposerText = prompt.trim().length > 0;
   const composerTargetHeight = !hasComposerText
     ? COMPOSER_EMPTY_HEIGHT
@@ -1185,6 +1045,9 @@ const ChatInput = memo(function ChatInput({
       );
   const composerScrollEnabled =
     hasComposerText && composerContentHeight > COMPOSER_INPUT_MAX_HEIGHT;
+  // The capsule is a full pill at single-line height; corners soften to a
+  // rounded rectangle once the text wraps to a second line.
+  const composerMultiline = composerContentHeight > COMPOSER_LINE_HEIGHT + 4;
   const composerAnimatedHeight = useSharedValue(COMPOSER_EMPTY_HEIGHT);
 
   useEffect(() => {
@@ -1197,11 +1060,6 @@ const ChatInput = memo(function ChatInput({
   const composerAnimatedStyle = useAnimatedStyle(() => ({
     height: composerAnimatedHeight.value,
   }));
-
-  const composerSuggestions = useMemo(
-    () => getSuggestions(prompt, composerSelection.selection.start),
-    [composerSelection.selection.start, prompt],
-  );
 
   const composerTrigger = useMemo(() => getComposerTrigger(prompt), [prompt]);
   const modelGroups = useMemo(() => {
@@ -1881,7 +1739,7 @@ const ChatInput = memo(function ChatInput({
                   <AttachmentDescription>
                     {file.mimeType ?? "Unknown type"}
                     {typeof file.size === "number"
-                      ? ` ? ${file.size} bytes`
+                      ? ` Â· ${file.size} bytes`
                       : ""}
                   </AttachmentDescription>
                 </AttachmentContent>
@@ -1926,11 +1784,22 @@ const ChatInput = memo(function ChatInput({
           </View>
         ) : null}
 
-        <View className="rounded-pill border border-border bg-input dark:border-border-dark dark:bg-input-dark">
-          {/* Icons stay vertically centered at every bar height; the container
-              itself has no hover/press effect ? feedback is isolated to the
-              icon buttons. */}
-          <View className="flex-row items-center px-2 py-1.5">
+        <View
+          className={cn(
+            "border border-border bg-input dark:border-border-dark dark:bg-input-dark",
+            composerMultiline ? "rounded-3xl" : "rounded-pill",
+          )}
+        >
+          {/* Icons stay vertically centered at single-line height and anchor
+              to the bottom corners as the capsule grows; the container itself
+              has no hover/press effect â€” feedback is isolated to the icon
+              buttons. */}
+          <View
+            className={cn(
+              "flex-row px-2 py-1.5",
+              composerMultiline ? "items-end" : "items-center",
+            )}
+          >
             <Pressable
               accessibilityLabel="Attachments and tools"
               accessibilityRole="button"
@@ -1979,7 +1848,7 @@ const ChatInput = memo(function ChatInput({
               accessibilityLabel={loading ? "Stop generating" : "Send message"}
               accessibilityRole="button"
               accessibilityState={{ disabled: sendDisabled }}
-              className="h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#0A84FF]"
+              className="h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0A84FF]"
               disabled={sendDisabled}
               hitSlop={8}
               onPress={() => {
@@ -2015,109 +1884,6 @@ const ChatInput = memo(function ChatInput({
             </Pressable>
           </View>
         </View>
-
-        {prompt.trim().length > 0 ? (
-          <View className="flex-row items-center">
-            <Pressable
-              accessibilityLabel="Toggle quick tools panel"
-              accessibilityRole="button"
-              className={cn(
-                "h-9 w-9 items-center justify-center rounded-full",
-                quickPanelOpen && "bg-secondary dark:bg-secondary-dark",
-              )}
-              hitSlop={4}
-              onPress={() => {
-                setQuickPanelOpen((current) => !current);
-              }}
-              style={({ pressed }) => (pressed ? { opacity: 0.82 } : null)}
-            >
-              <LayoutGrid color={theme.textSecondary} size={18} />
-            </Pressable>
-            <View className="mx-1 h-4 w-px bg-border dark:bg-border-dark" />
-            {composerSuggestions.map((word, index) => (
-              <View className="flex-row items-center" key={`${word}-${index}`}>
-                {index > 0 ? (
-                  <View className="mx-1 h-4 w-px bg-border dark:bg-border-dark" />
-                ) : null}
-                <Pressable
-                  accessibilityRole="button"
-                  className="px-3 py-1.5"
-                  onPress={() => {
-                    const { text, cursor } = insertSuggestion(
-                      prompt,
-                      composerSelection.selection.start,
-                      composerSelection.selection.end,
-                      word,
-                    );
-                    setPrompt(text);
-                    composerSelection.requestCursor(cursor);
-                  }}
-                  style={({ pressed }) => (pressed ? { opacity: 0.7 } : null)}
-                >
-                  <Text className="font-sans text-sm text-muted-foreground dark:text-[#ECECEC]">
-                    {word}
-                  </Text>
-                </Pressable>
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        {quickPanelOpen ? (
-          <View className="flex-row flex-wrap gap-2 rounded-card bg-card p-2 dark:bg-card-dark">
-            {[
-              {
-                label: "Files",
-                onPress: () => {
-                  setQuickPanelOpen(false);
-                  setFilesDrawerOpen(true);
-                },
-              },
-              {
-                label: "Model",
-                onPress: () => {
-                  setQuickPanelOpen(false);
-                  setModelsDrawerOpen(true);
-                },
-              },
-              {
-                label: "Skills",
-                onPress: () => {
-                  setQuickPanelOpen(false);
-                  setSkillsDrawerOpen(true);
-                },
-              },
-              {
-                label: "MCP",
-                onPress: () => {
-                  setQuickPanelOpen(false);
-                  setMcpServersDrawerOpen(true);
-                },
-              },
-            ].map((action) => (
-              <Pressable
-                accessibilityRole="button"
-                className="rounded-pill bg-secondary px-4 py-2 dark:bg-secondary-dark"
-                key={action.label}
-                onPress={action.onPress}
-                style={({ pressed }) => (pressed ? { opacity: 0.82 } : null)}
-              >
-                <Text className="font-sans text-sm font-medium text-foreground dark:text-foreground-dark">
-                  {action.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-
-        {prompt.trim().length === 0 ? (
-          <Text className="px-sp-1 font-sans text-xs text-muted-foreground dark:text-muted-foreground-dark">
-            Use @ for files and folders, / for commands.
-            {supportsImageGeneration
-              ? " This model can also generate images."
-              : ""}
-          </Text>
-        ) : null}
       </View>
 
       <Drawer
@@ -2177,8 +1943,8 @@ const ChatInput = memo(function ChatInput({
               icon={<ClipboardList color={theme.text} size={16} />}
               label={
                 conversationAgentName === "build"
-                  ? "Select agent · Build"
-                  : `Select agent · ${conversationAgentName}`
+                  ? "Select agent Â· Build"
+                  : `Select agent Â· ${conversationAgentName}`
               }
               onPress={() => {
                 setPlusMenuDrawerOpen(false);
@@ -2206,12 +1972,12 @@ const ChatInput = memo(function ChatInput({
             />
             <ComposerMenuRow
               icon={<Brain color={theme.text} size={16} />}
-              label={`Tool approval ? ${toolApprovalMode === "ask" ? "Ask" : "Allow"}`}
+              label={`Tool approval Â· ${toolApprovalMode === "ask" ? "Ask" : "Allow"}`}
               onPress={() => {
                 setPlusMenuDrawerOpen(false);
                 setApprovalModeDrawerOpen(true);
               }}
-              subtitle="Ask before each tool action, or auto-approve"
+              subtitle="Review each tool action, or run tools automatically"
             />
           </DrawerBody>
         </DrawerContent>
@@ -2500,7 +2266,7 @@ const ChatInput = memo(function ChatInput({
                     subtitle={
                       skill.autoMatch
                         ? skill.description
-                          ? `Auto ? ${skill.description}`
+                          ? `Auto Â· ${skill.description}`
                           : "Auto"
                         : (skill.description ?? undefined)
                     }
@@ -2594,7 +2360,7 @@ const ChatInput = memo(function ChatInput({
           <DrawerHeader>
             <DrawerTitle>Tool approval</DrawerTitle>
             <DrawerDescription>
-              Choose how built-in tools run during chat.
+              Controls when the agent asks before running a tool.
             </DrawerDescription>
           </DrawerHeader>
           <DrawerBody contentContainerClassName="gap-sp-2 pb-sp-4">
@@ -2607,8 +2373,8 @@ const ChatInput = memo(function ChatInput({
                   .catch(console.error);
               }}
               selected={toolApprovalMode === "ask"}
-              subtitle="Ask before every tool action"
-              title="Always ask"
+              subtitle="Show a confirmation for each tool action before it runs"
+              title="Ask every time"
             />
             <DrawerSelectRow
               onPress={() => {
@@ -2619,8 +2385,8 @@ const ChatInput = memo(function ChatInput({
                   .catch(console.error);
               }}
               selected={toolApprovalMode === "auto"}
-              subtitle="Run tools without asking each time"
-              title="Always allow"
+              subtitle="Run tool actions immediately without confirmation"
+              title="Allow automatically"
             />
           </DrawerBody>
         </DrawerContent>

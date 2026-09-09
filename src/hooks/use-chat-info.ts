@@ -29,6 +29,15 @@ type DisplayUsage = {
   providerLabel: string;
   remainingContext: number | null;
   totalTokens: number | null;
+  inputTokenDetails?: {
+    noCacheTokens: number | null;
+    cacheReadTokens: number | null;
+    cacheWriteTokens: number | null;
+  } | null;
+  outputTokenDetails?: {
+    textTokens: number | null;
+    reasoningTokens: number | null;
+  } | null;
 };
 
 function sumNullableNumbers(values: (number | null)[]) {
@@ -106,9 +115,11 @@ function enrichUsage(
     costOutput: outputCost,
     costTotal: totalCost,
     inputTokens: usage.inputTokens,
+    inputTokenDetails: usage.inputTokenDetails ?? null,
     isPartial: false,
     modelLabel: usage.modelLabel,
     outputTokens: usage.outputTokens,
+    outputTokenDetails: usage.outputTokenDetails ?? null,
     providerLabel: usage.providerLabel,
     remainingContext,
     totalTokens: usedTokens,
@@ -164,17 +175,39 @@ export function useChatInfo() {
                   usage.costTotal === null,
               ) || modelLabels.size > 1;
 
+            const sumTokenDetails = (
+              pick: (usage: DisplayUsage) => number | null,
+            ) => {
+              const values = enriched.map(pick);
+              return sumNullableNumbers(values);
+            };
+
             return {
               contextUsagePercent: null,
               contextWindow: null,
-              costInput: sumNullableNumbers(enriched.map((usage) => usage.costInput)),
+              costInput: sumNullableNumbers(
+                enriched.map((usage) => usage.costInput),
+              ),
               costOutput: sumNullableNumbers(
                 enriched.map((usage) => usage.costOutput),
               ),
-              costTotal: sumNullableNumbers(enriched.map((usage) => usage.costTotal)),
+              costTotal: sumNullableNumbers(
+                enriched.map((usage) => usage.costTotal),
+              ),
               inputTokens: sumNullableNumbers(
                 enriched.map((usage) => usage.inputTokens),
               ),
+              inputTokenDetails: {
+                noCacheTokens: sumTokenDetails(
+                  (usage) => usage.inputTokenDetails?.noCacheTokens ?? null,
+                ),
+                cacheReadTokens: sumTokenDetails(
+                  (usage) => usage.inputTokenDetails?.cacheReadTokens ?? null,
+                ),
+                cacheWriteTokens: sumTokenDetails(
+                  (usage) => usage.inputTokenDetails?.cacheWriteTokens ?? null,
+                ),
+              },
               isPartial: partial,
               modelLabel:
                 modelLabels.size === 1
@@ -183,6 +216,14 @@ export function useChatInfo() {
               outputTokens: sumNullableNumbers(
                 enriched.map((usage) => usage.outputTokens),
               ),
+              outputTokenDetails: {
+                textTokens: sumTokenDetails(
+                  (usage) => usage.outputTokenDetails?.textTokens ?? null,
+                ),
+                reasoningTokens: sumTokenDetails(
+                  (usage) => usage.outputTokenDetails?.reasoningTokens ?? null,
+                ),
+              },
               providerLabel:
                 providerLabels.size === 1
                   ? (enriched[0]?.providerLabel ?? "Unknown")

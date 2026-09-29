@@ -63,11 +63,37 @@ jobs:
           if [ -n "${{ secrets.SIGNING_CONFIG }}" ]; then
             echo "${{ secrets.SIGNING_CONFIG }}" > local.properties
           fi
-          if [ -z "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
-            echo "::error::GOOGLE_SERVICES_JSON secret is missing. Add your Firebase google-services.json (see workflow header)."
-            exit 1
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
+          else
+            # TODO: replace with the real Firebase file (register
+            # com.ajirodesu.ajiroagent in the Firebase console, then store it
+            # as the GOOGLE_SERVICES_JSON repo secret). Placeholder only lets
+            # the google-services Gradle plugin pass; Crashlytics/RemoteConfig
+            # stay inert until the real file is used.
+            echo "::warning::GOOGLE_SERVICES_JSON secret missing, using placeholder Firebase config."
+            cat > app/google-services.json <<'JSONEOF'
+            {
+              "project_info": {
+                "project_number": "0",
+                "project_id": "ajiro-agent-placeholder",
+                "storage_bucket": "ajiro-agent-placeholder.appspot.com"
+              },
+              "client": [
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:0:android:000000000000",
+                    "android_client_info": { "package_name": "com.ajirodesu.ajiroagent" }
+                  },
+                  "oauth_client": [],
+                  "api_key": [{ "current_key": "PLACEHOLDER" }],
+                  "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+                }
+              ],
+              "configuration_version": "1"
+            }
+            JSONEOF
           fi
-          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
 
       - name: Gradle Build
         run: |

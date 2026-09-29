@@ -26,7 +26,7 @@
     android:required="false" />
 
   <application
-        android:name=".Ajiro AgentApp"
+        android:name=".LastChatApp"
     android:allowBackup="true"
     android:appCategory="productivity"
     android:largeHeap="true"
@@ -76,7 +76,7 @@
     </activity>
 
     <activity
-        android:name=".ui.activity.AskAjiro AgentShareActivity"
+        android:name=".ui.activity.AskLastChatShareActivity"
         android:exported="true"
         android:label="@string/text_selection_menu_label"
         android:theme="@style/Theme.Rikkahub.Translucent"
@@ -173,7 +173,7 @@
 
     <!-- Digital Assistant: makes Ajiro Agent selectable as the default assistant app -->
     <service
-        android:name=".service.assist.Ajiro AgentVoiceInteractionService"
+        android:name=".service.assist.LastChatVoiceInteractionService"
         android:label="@string/assistant_overlay_service_label"
         android:permission="android.permission.BIND_VOICE_INTERACTION"
         android:exported="true">
@@ -186,12 +186,12 @@
     </service>
 
     <service
-        android:name=".service.assist.Ajiro AgentVoiceInteractionSessionService"
+        android:name=".service.assist.LastChatVoiceInteractionSessionService"
         android:permission="android.permission.BIND_VOICE_INTERACTION"
         android:exported="true" />
 
     <service
-        android:name=".service.assist.Ajiro AgentRecognitionService"
+        android:name=".service.assist.LastChatRecognitionService"
         android:exported="true">
         <intent-filter>
             <action android:name="android.speech.RecognitionService" />

@@ -72,27 +72,7 @@ jobs:
             # the google-services Gradle plugin pass; Crashlytics/RemoteConfig
             # stay inert until the real file is used.
             echo "::warning::GOOGLE_SERVICES_JSON secret missing, using placeholder Firebase config."
-            cat > app/google-services.json <<'JSONEOF'
-            {
-              "project_info": {
-                "project_number": "0",
-                "project_id": "ajiro-agent-placeholder",
-                "storage_bucket": "ajiro-agent-placeholder.appspot.com"
-              },
-              "client": [
-                {
-                  "client_info": {
-                    "mobilesdk_app_id": "1:0:android:000000000000",
-                    "android_client_info": { "package_name": "com.ajirodesu.ajiroagent" }
-                  },
-                  "oauth_client": [],
-                  "api_key": [{ "current_key": "PLACEHOLDER" }],
-                  "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
-                }
-              ],
-              "configuration_version": "1"
-            }
-            JSONEOF
+            python3 -c "import json; json.dump({'project_info': {'project_number': '0', 'project_id': 'ajiro-agent-placeholder', 'storage_bucket': 'ajiro-agent-placeholder.appspot.com'}, 'client': [{'client_info': {'mobilesdk_app_id': '1:0:android:000000000000', 'android_client_info': {'package_name': 'com.ajirodesu.ajiroagent'}}, 'oauth_client': [], 'api_key': [{'current_key': 'PLACEHOLDER'}], 'services': {'appinvite_service': {'other_platform_oauth_client': []}}}], 'configuration_version': '1'}, open('app/google-services.json', 'w'), indent=2)"
           fi
 
       - name: Gradle Build

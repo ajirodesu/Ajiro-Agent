@@ -800,25 +800,19 @@ fun MinimalChatInput(
         )
     }
 
-    // Capsule metrics, px-spec driven and converted with the device density
-    // (at 3.0x: 120px = 40dp, 44px ≈ 14.5dp).
-    // Inactive (keyboard closed): 120px side insets, bottom edge 120px from
-    //   the physical screen bottom INCLUDING the gesture inset, so the bottom
-    //   padding is 120px minus the nav-bar inset -- never stacked on top of it.
-    // Active (keyboard open): 44px side insets, 44px gap above the keyboard.
-    // Thickness matches the hamburger button container (AppSize.ChromePill)
-    // in both states; insets/gap animate (~200ms).
-    val capsuleDensity = LocalDensity.current
-    val capsuleActiveInset = with(capsuleDensity) { 44f.toDp() }
-    val capsuleInactiveInset = with(capsuleDensity) { 120f.toDp() }
-    val capsulePxHeight = with(capsuleDensity) { 166f.toDp() }
-    val navBottomInset = with(capsuleDensity) {
-        WindowInsets.navigationBars.getBottom(capsuleDensity).toDp()
-    }
-    val capsuleInactiveBottom =
-        (with(capsuleDensity) { 120f.toDp() } - navBottomInset).coerceAtLeast(0.dp)
+    // Message capsule spacing (ChatGPT-style, dp only, never px):
+    // 14.dp uniform on three sides: horizontal margins 14.dp, bottom gap
+    // 14.dp above the keyboard when open, 14.dp above the gesture bar
+    // when closed. windowInsetsPadding(ime.union(navigationBars)) comes
+    // BEFORE the 14.dp bottom padding so no extra inset stacks on top and
+    // the gap stays exactly 14.dp. Capsule is a 55.dp pill
+    // (radius = height / 2) with a 37.dp trailing action button.
+    val capsuleHInset = 14.dp
+    val capsuleBottomGap = 14.dp
+    val capsuleHeight = 55.dp
+    val capsuleDensity = LocalDensity.current // Kept for line-height conversion below.
     val animatedCapsuleHInset by animateDpAsState(
-        targetValue = if (imeVisible) capsuleActiveInset else capsuleInactiveInset,
+        targetValue = capsuleHInset,
         animationSpec = tween(
             durationMillis = 200,
             easing = androidx.compose.animation.core.FastOutSlowInEasing
@@ -826,19 +820,17 @@ fun MinimalChatInput(
         label = "capsule_h_inset"
     )
     val animatedCapsuleBottomGap by animateDpAsState(
-        targetValue = if (imeVisible) capsuleActiveInset else capsuleInactiveBottom,
+        targetValue = capsuleBottomGap,
         animationSpec = tween(
             durationMillis = 200,
             easing = androidx.compose.animation.core.FastOutSlowInEasing
         ),
         label = "capsule_bottom_gap"
     )
-    // Lowest suggestion row: vertical center 129px above the capsule top.
+    // Lowest suggestion row: vertical center ~43.dp above the capsule top.
     // Row is 36.dp tall with 8.dp column spacing, so the extra pad below it
-    // is 129px minus half the row minus the column spacing.
-    val aboveCapsulePad = (
-        with(capsuleDensity) { 129f.toDp() } - 18.dp - 8.dp
-        ).coerceAtLeast(0.dp)
+    // keeps that spacing in dp only.
+    val aboveCapsulePad = 17.dp
 
     // Root stays wrap-content: the composer column sizes itself and the caller
     // anchors it at the bottom. The plus menu below renders in its own
@@ -848,26 +840,24 @@ fun MinimalChatInput(
         contentAlignment = Alignment.BottomCenter
     ) {
         Column(
-            // Capsule spacing, px-spec driven:
-            // keyboard OPEN   -> imePadding() follows the keyboard, then the
-            //   44px gap sits AFTER it; nothing else (no nav-bars inset, no
-            //   spacer) is stacked on top or the gap would exceed 44px.
-            // keyboard CLOSED -> resting position: ONLY the 120px-minus-inset
-            //   bottom gap, no imePadding/navigationBarsPadding stacked on it.
-            // dp only, no hardcoded pixels.
+            // Capsule spacing (ChatGPT-style, dp only):
+            // fillMaxWidth + horizontal 14.dp, then
+            // windowInsetsPadding(ime.union(navigationBars)) follows the
+            // keyboard when open and the gesture bar when closed, then a
+            // final 14.dp bottom gap AFTER the inset so the gap is exactly
+            // 14.dp and never stacked.
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = animatedCapsuleHInset)
-                .then(if (imeVisible) Modifier.imePadding() else Modifier)
-                .padding(bottom = animatedCapsuleBottomGap)
-                .verticalScroll(rememberScrollState()),
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .padding(bottom = animatedCapsuleBottomGap),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val showSuggestions = !isQuestionnaireActive && !isToolApprovalActive && chatSuggestions.isNotEmpty()
             val showScrollToBottom = !isQuestionnaireActive && !isToolApprovalActive && showScrollToBottomButton
 
             // Suggestions and scroll-to-bottom affordance share a row so they never overlap.
-            // Lowest row center sits 129px above the capsule top (via aboveCapsulePad).
+            // Lowest row center sits ~43.dp above the capsule top (via aboveCapsulePad).
             androidx.compose.animation.AnimatedVisibility(
                 visible = showSuggestions || showScrollToBottom,
                 modifier = Modifier
@@ -1020,19 +1010,22 @@ fun MinimalChatInput(
 
             // Message capsule: sides come from the outer container, so the
             // row adds no extra horizontal padding (no double margin).
-            // Fixed 166px pill (radius = height / 2) in the inactive/empty
-            // state; grows only once focused with content. Height never
-            // animates between states -- only insets/gap do.
-            // All contents sit centered between the upper and lower edges:
-            // the row is CenterVertically aligned, the action button is
-            // CenterEnd, and the text field uses zero vertical padding.
+            // Fixed 55.dp pill (radius = height / 2) in the empty state;
+            // grows only once focused with content. Height never animates
+            // between states -- only insets/gap do.
+            // Wrapped text stays in the text column between the buttons:
+            // the second line starts at the same X as the first line's text
+            // (just after the + button) and ends at the same X as the first
+            // line's text (just before the send button). The + and send
+            // buttons are only visual references for those column edges --
+            // text never slides under the actual buttons.
             // Text field capsule with embedded 37.dp action button
-            val inputShape = RoundedCornerShape(capsulePxHeight / 2)
-            // Growth gate: inactive/empty stays exactly 166px; focused with
+            val inputShape = RoundedCornerShape(capsuleHeight / 2)
+            // Growth gate: empty stays exactly 55.dp; focused with
             // content may grow upward via min-height instead of fixed height.
             val capsuleHeightModifier =
-                if (isFocused && !state.isEmpty()) Modifier.heightIn(min = capsulePxHeight)
-                else Modifier.height(capsulePxHeight)
+                if (isFocused && !state.isEmpty()) Modifier.heightIn(min = capsuleHeight)
+                else Modifier.height(capsuleHeight)
             LastChatComposerRow {
                 LastChatComposerCapsule(
                     containerColor = blurredContainerColor(MaterialTheme.colorScheme.surfaceContainer),
@@ -1053,7 +1046,7 @@ fun MinimalChatInput(
                         // centered between the upper and lower edges.
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = capsulePxHeight),
+                            .heightIn(min = capsuleHeight),
                         verticalArrangement = Arrangement.Center
                     ) {
                         androidx.compose.animation.AnimatedVisibility(
@@ -1123,13 +1116,14 @@ fun MinimalChatInput(
                         // Single row: [+] [field ............]
                         // Vertically centered (upper/lower middle), not bottom-anchored,
                         // so the + button and placeholder sit mid-capsule.
-                        // Inner px spec: row starts 28px in, so the 112px-wide +
-                        // centers at 84px from the capsule's left edge.
+                        // Inner layout in dp: 8.dp leading inset, 37.dp +
+                        // button, 8.dp gap to the text column. Wrapped lines
+                        // stay inside the text column (see capsule comment).
                         // (action button stays overlaid end-side, expand stays top-end)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = with(LocalDensity.current) { 28f.toDp() }),
+                                .padding(start = 8.dp, end = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             // Plus button - dedicated container matching the Send
@@ -1161,15 +1155,14 @@ fun MinimalChatInput(
                                     Icon(
                                         imageVector = if (sttRecording) Icons.Rounded.Stop else Icons.Rounded.Add,
                                         contentDescription = null,
-                                        // + glyph ~63px wide per spec.
-                                        modifier = Modifier.size(with(LocalDensity.current) { 63f.toDp() }),
+                                        // + glyph 21.dp inside the 37.dp circle.
+                                        modifier = Modifier.size(21.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                                // + (28px pad + 112px) ends 140px in; a compact 12px
-                                // gap keeps decent spacing while pulling the
+                                // 8.dp gap keeps decent spacing while pulling the
                                 // placeholder closer to the left.
-                                Spacer(modifier = Modifier.width(with(LocalDensity.current) { 12f.toDp() }))
+                                Spacer(modifier = Modifier.width(8.dp))
                             }
                         // Text input with content receiver for paste + overlaid action button
                         Box(
@@ -1350,17 +1343,14 @@ fun MinimalChatInput(
                                     .padding(end = 4.dp, top = 4.dp)
                             )
 
-                            // Action button: 112px circle, 34px from the capsule's
-                            // right edge, vertically centered (27px above/below).
+                            // Action button: 37.dp circle, 6.dp from the capsule's
+                            // right edge, vertically centered in the 55.dp pill.
                             // No vertical padding inside the row: it would push
                             // the button off-center in the fixed-height capsule.
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.CenterEnd)
-                                    .padding(
-                                        start = 6.dp,
-                                        end = with(LocalDensity.current) { 34f.toDp() }
-                                    )
+                                    .padding(start = 6.dp, end = 0.dp)
                             ) {
                                 AttachmentImportAction(
                                     isImporting = isImportingAttachments,

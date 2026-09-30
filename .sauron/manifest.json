@@ -1,0 +1,167 @@
+{
+  "installedAt": "2026-09-30T05:43:32.207Z",
+  "version": "1.0.0",
+  "managedFiles": [
+    {
+      "path": "CLAUDE.md",
+      "runtime": "claude",
+      "backupPath": ".sauron/backups/CLAUDE.md.2026-09-30T05-43-32-206Z.bak",
+      "checksum": "sha256:a0718e9425cd578f306ea99456d9cacd6c2ceb70311f73373577f2f5527d34df",
+      "lastUpdated": "2026-09-30T05:43:32.207Z"
+    },
+    {
+      "path": ".cursorrules",
+      "runtime": "cursor",
+      "backupPath": null,
+      "checksum": "sha256:82b826387f1e44ddb3be21a222a76db26bbc1213bcf0a46305fc6400893ffcd3",
+      "lastUpdated": "2026-09-30T05:43:32.207Z"
+    },
+    {
+      "path": ".cursor/rules/sauron.mdc",
+      "runtime": "cursor",
+      "backupPath": null,
+      "checksum": "sha256:f24c0ff4d6a4d3aed60fb7c639bdfa6063f16c4ddba2535d08080cd90840a10a",
+      "lastUpdated": "2026-09-30T05:43:32.207Z"
+    },
+    {
+      "path": ".windsurfrules",
+      "runtime": "windsurf",
+      "backupPath": null,
+      "checksum": "sha256:13fbc646c33d1e3d9d56cb92e3a67f9827636e350d0577df826226969f4cb4e2",
+      "lastUpdated": "2026-09-30T05:43:32.208Z"
+    },
+    {
+      "path": ".github/copilot-instructions.md",
+      "runtime": "copilot",
+      "backupPath": null,
+      "checksum": "sha256:20e9d597e10180c12b76ca344a629fdc9bd78eb64483581f9abcdffa943c4049",
+      "lastUpdated": "2026-09-30T05:43:32.208Z"
+    },
+    {
+      "path": ".github/hooks/agent-guard.json",
+      "runtime": "copilot",
+      "backupPath": null,
+      "checksum": "sha256:5652f3f06f70c66ffc20a0a6dadc4098ca66bcf1f29600e9a9d6889be5d961d6",
+      "lastUpdated": "2026-09-30T05:43:32.208Z"
+    },
+    {
+      "path": ".clinerules",
+      "runtime": "cline",
+      "backupPath": null,
+      "checksum": "sha256:a3c9150d4830e03ca40edcbefc8b60c85bea6a1548309bfae2b1e09f75053294",
+      "lastUpdated": "2026-09-30T05:43:32.209Z"
+    },
+    {
+      "path": ".traerules",
+      "runtime": "trae",
+      "backupPath": null,
+      "checksum": "sha256:e664d0e404966c66b2b25c9e321abf164d44c009499f3fcf1a3d90652b9d2bc4",
+      "lastUpdated": "2026-09-30T05:43:32.209Z"
+    },
+    {
+      "path": ".zed/settings.json",
+      "runtime": "zed",
+      "backupPath": null,
+      "checksum": "sha256:10e22077742afadf9bbaf1a88d0aa4da1e9ca535bfeee42183b15c9bc0485622",
+      "lastUpdated": "2026-09-30T05:43:32.209Z"
+    },
+    {
+      "path": ".zed/prompts/sauron.md",
+      "runtime": "zed",
+      "backupPath": null,
+      "checksum": "sha256:4683b71c706f56d543f8c21127ce7f9a491eabf779e1c5adb19b1d25ed0a6b63",
+      "lastUpdated": "2026-09-30T05:43:32.209Z"
+    },
+    {
+      "path": ".codex/instructions.md",
+      "runtime": "codex",
+      "backupPath": null,
+      "checksum": "sha256:83f51698d94dd3dde00413dd102c457f77845c0e04c549329391d025bc60224f",
+      "lastUpdated": "2026-09-30T05:43:32.210Z"
+    },
+    {
+      "path": ".vscode/settings.json",
+      "runtime": "vscode",
+      "backupPath": null,
+      "checksum": "sha256:6816af4959ac8bdbffce75ba1df2dffe1db895aadde9ad5836bad4ab5b9cb5fa",
+      "lastUpdated": "2026-09-30T05:43:32.210Z"
+    },
+    {
+      "path": ".vscode/sauron.instructions.md",
+      "runtime": "vscode",
+      "backupPath": null,
+      "checksum": "sha256:ccaf9e3fe523e176a895e408c4a71458ffaed4d1e17f11c45a4ae4732030c874",
+      "lastUpdated": "2026-09-30T05:43:32.210Z"
+    },
+    {
+      "path": "GEMINI.md",
+      "runtime": "gemini",
+      "backupPath": null,
+      "checksum": "sha256:53cc9006bb6385dc136adeea5427987151ac78e0b8d81674ba53ebe20f7287e0",
+      "lastUpdated": "2026-09-30T05:43:32.210Z"
+    },
+    {
+      "path": ".qwen/system.md",
+      "runtime": "qwen",
+      "backupPath": null,
+      "checksum": "sha256:84fc849b02d690c8c86c56a77a37f15c0061f00d2e96479e3c87fdf40d142d40",
+      "lastUpdated": "2026-09-30T05:43:32.211Z"
+    },
+    {
+      "path": ".kimi/prompt.md",
+      "runtime": "kimi",
+      "backupPath": null,
+      "checksum": "sha256:fc1c6accab8d2172ed99115b9e6d2d9874f295ea35c33b560178e0a4443c0676",
+      "lastUpdated": "2026-09-30T05:43:32.211Z"
+    },
+    {
+      "path": ".kirorules",
+      "runtime": "kiro",
+      "backupPath": null,
+      "checksum": "sha256:d5ca01d65a86d72a228540bb837eca5ba24de194986effb8b6aa924936dfa003",
+      "lastUpdated": "2026-09-30T05:43:32.211Z"
+    },
+    {
+      "path": ".hermesrules",
+      "runtime": "hermes",
+      "backupPath": null,
+      "checksum": "sha256:e1c9243a60ccdbf133bbd12469620d246811724ebfe6b022b3fbb06af1c85943",
+      "lastUpdated": "2026-09-30T05:43:32.211Z"
+    },
+    {
+      "path": ".openclaude/config.json",
+      "runtime": "openclaude",
+      "backupPath": null,
+      "checksum": "sha256:a1a8bf5ee707285da97afa907e1c0d8e8cfc79c0ca5a19bc356ecc17cc8fab35",
+      "lastUpdated": "2026-09-30T05:43:32.212Z"
+    },
+    {
+      "path": ".opencode/instructions.md",
+      "runtime": "opencode",
+      "backupPath": null,
+      "checksum": "sha256:a6ac168f37885e5d09563f03f02b995499c07e55b784a8a21a64cc4d4f4f0aa1",
+      "lastUpdated": "2026-09-30T05:43:32.212Z"
+    },
+    {
+      "path": ".pirules",
+      "runtime": "pi",
+      "backupPath": null,
+      "checksum": "sha256:fc3799feda48774312aca59d0f24e524739f865454673206441ae6ae69201b89",
+      "lastUpdated": "2026-09-30T05:43:32.212Z"
+    },
+    {
+      "path": ".adalrules",
+      "runtime": "adal",
+      "backupPath": null,
+      "checksum": "sha256:4040b1aaa2def5511344c0a8433f0a65c4968c21f66151a515b1848e6730d91c",
+      "lastUpdated": "2026-09-30T05:43:32.213Z"
+    },
+    {
+      "path": ".codebuddy/rules.md",
+      "runtime": "codebuddy",
+      "backupPath": null,
+      "checksum": "sha256:8395def78ad6a27c62af0beba997f0841d52b1fd40042ff0801fe3b07d32dd70",
+      "lastUpdated": "2026-09-30T05:43:32.213Z"
+    }
+  ]
+}

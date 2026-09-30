@@ -401,11 +401,11 @@ val dataSourceModule = module {
     // On-device (LiteRT-LM) provider stack
     single { me.rerere.locallm.LocalModelStore(get()) }
     single { me.rerere.locallm.LiteRtCatalog(get()) }
-    single { 
+    single {
         me.rerere.locallm.ModelInstall(
             context = get(),
             huggingFaceTokenProvider = { get<me.rerere.rikkahub.data.datastore.SecretKeyManager>().getHuggingFaceToken() }
-        ) 
+        )
     }
     single {
         me.rerere.locallm.LocalDownloadManager(

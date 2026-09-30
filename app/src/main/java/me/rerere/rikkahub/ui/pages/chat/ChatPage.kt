@@ -1967,6 +1967,13 @@ private fun ChatPageContent(
                     onNavigateToLorebook = { lorebookId ->
                         navController.navigate(Screen.SettingLorebookDetail(lorebookId))
                     },
+                    onNavigateToWorkspace = { workspaceId ->
+                        if (workspaceId != null) {
+                            navController.navigate(Screen.WorkspaceDetail(workspaceId))
+                        } else {
+                            navController.navigate(Screen.Workspaces)
+                        }
+                    },
                     onRefreshContext = { vm.refreshContext() },
                     onDeleteFile = { vm.deleteFile(it) },
                     bottomAccessory = bottomToolbarContent,

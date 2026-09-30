@@ -97,6 +97,12 @@ data class Assistant(
     val enabledLorebookIds: Set<Uuid> = emptySet(), // Lorebooks enabled for this assistant
     val enabledSkillIds: Set<Uuid> = emptySet(), // Skills enabled for this assistant
     val enableAutomaticSkillInvocation: Boolean = true, // Let the model discover and activate otherwise unselected skills
+    // LobeHub parity (enableAgentMode): agent mode (full tool access) vs chat mode
+    // (plain conversation: memory + web search + lorebooks only, no tools). True is
+    // the default; only an explicit false collapses to chat mode. Chat mode is
+    // enforced at generation time — saved tool/skill config is never mutated.
+    // DataStore JSON decodes unknown/absent keys with defaults, so no migration.
+    val agentMode: Boolean = true,
 
     // Context Management Settings
     val smartContextManagement: Boolean = true,

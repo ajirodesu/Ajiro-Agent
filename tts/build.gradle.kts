@@ -7,7 +7,7 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(21)
 
     androidTarget {
         compilerOptions.jvmTarget.set(JvmTarget.JVM_11)
@@ -20,10 +20,6 @@ kotlin {
             languageSettings.optIn("kotlinx.coroutines.ExperimentalCoroutinesApi")
         }
         commonMain {
-            kotlin.srcDir("src/main/java")
-            kotlin.exclude("me/rerere/tts/provider/android/**")
-            kotlin.exclude("me/rerere/tts/provider/providers/android/**")
-            kotlin.exclude("me/rerere/tts/controller/AudioPlayer.kt")
             dependencies {
                 api(project(":common"))
                 implementation(libs.kotlinx.serialization.json)
@@ -35,10 +31,6 @@ kotlin {
         }
         androidMain {
             kotlin.srcDir("src/main/java")
-            kotlin.include("me/rerere/tts/provider/TtsDispatcher.android.kt")
-            kotlin.include("me/rerere/tts/provider/android/**")
-            kotlin.include("me/rerere/tts/provider/providers/android/**")
-            kotlin.include("me/rerere/tts/controller/AudioPlayer.kt")
             dependencies {
                 implementation(libs.okhttp)
                 implementation(libs.androidx.media3.exoplayer)
@@ -75,7 +67,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    sourceSets.getByName("main").java.setSrcDirs(emptyList<String>())
 }
 
 dependencies {

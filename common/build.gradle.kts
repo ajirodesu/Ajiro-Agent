@@ -6,7 +6,7 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(21)
 
     androidTarget {
         compilerOptions.jvmTarget.set(JvmTarget.JVM_11)
@@ -14,9 +14,6 @@ kotlin {
 
     sourceSets {
         commonMain {
-            kotlin.srcDir("src/main/java")
-            kotlin.exclude("me/rerere/common/android/**")
-            kotlin.exclude("me/rerere/common/platform/android/**")
             dependencies {
                 api(project(":shared"))
                 api(libs.kotlinx.serialization.json)
@@ -25,9 +22,6 @@ kotlin {
             }
         }
         androidMain {
-            kotlin.srcDir("src/main/java")
-            kotlin.include("me/rerere/common/android/**")
-            kotlin.include("me/rerere/common/platform/android/**")
             dependencies {
                 api(libs.okhttp)
                 api(libs.okhttp.sse)

@@ -155,7 +155,7 @@ class LastChatApp : Application(), SingletonImageLoader.Factory {
                 PeriodicWorkRequestBuilder<MemoryConsolidationWorker>(6, TimeUnit.HOURS).build(),
             )
         }
-        
+
         // Update app shortcuts when recently used assistants change
         val appShortcutManager = me.rerere.rikkahub.utils.AppShortcutManager(this)
         get<AppScope>().launch {
@@ -183,7 +183,7 @@ class LastChatApp : Application(), SingletonImageLoader.Factory {
                 }
             }
         })
-        
+
         get<AppScope>().launch(Dispatchers.IO) {
             runCatching {
                 val settingsStore = get<SettingsStore>()

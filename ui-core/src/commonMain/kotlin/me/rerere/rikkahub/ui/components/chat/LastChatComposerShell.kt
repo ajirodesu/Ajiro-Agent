@@ -12,6 +12,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,8 +30,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -98,15 +103,68 @@ fun LastChatComposerAddButton(
     }
 }
 
+/**
+ * Dedicated + button container. Same dimensions, corner radius and internal
+ * alignment as the Send container ([LastChatComposerActionButton]), but keeps
+ * the former + background color. No visible border while inactive; the border
+ * appears (theme accent, same 1.dp weight as other active chrome) while
+ * pressed, focused, or [active] (e.g. the attachment menu is open).
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun LastChatComposerPlusButton(
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    active: Boolean,
+    modifier: Modifier = Modifier.size(AppSize.ComposerAction),
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    content: @Composable () -> Unit,
+) {
+    val interactionSource = remember {
+        androidx.compose.foundation.interaction.MutableInteractionSource()
+    }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    var isFocused by remember { mutableStateOf(false) }
+    val showBorder = active || isPressed || isFocused
+    Surface(
+        shape = CircleShape,
+        color = containerColor,
+        border = if (showBorder) {
+            BorderStroke(
+                AppSurface.SoftEdgeWidth,
+                MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            null
+        },
+        modifier = modifier.onFocusChanged { isFocused = it.isFocused },
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxSize()
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = androidx.compose.foundation.LocalIndication.current,
+                    onLongClick = onLongClick,
+                    onClick = onClick,
+                ),
+        ) {
+            content()
+        }
+    }
+}
+
 /** The production 24 dp input capsule; text, attachments, and actions are slotted inside. */
 @Composable
 fun RowScope.LastChatComposerCapsule(
     modifier: Modifier = Modifier.weight(1f).heightIn(min = AppSize.ChromePill),
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    shape: androidx.compose.foundation.shape.RoundedCornerShape = LastChatComposerInputShape,
     content: @Composable () -> Unit,
 ) {
     Surface(
-        shape = LastChatComposerInputShape,
+        shape = shape,
         color = containerColor,
         border = BorderStroke(
             AppSurface.SoftEdgeWidth,

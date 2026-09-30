@@ -1,6 +1,7 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.io.File
 import java.io.FileInputStream
 import java.util.Properties
 import kotlin.math.sign
@@ -58,6 +59,8 @@ val buildWebUi by tasks.registering(Exec::class) {
     }
     outputs.dir(webUiBuildDir)
 
+    onlyIf { !webUiBuildDir.exists() || webUiBuildDir.listFiles().isNullOrEmpty() }
+
     commandLine(
         if (Os.isFamily(Os.FAMILY_WINDOWS)) listOf("cmd", "/c", "npm", "run", "build")
         else listOf("npm", "run", "build")
@@ -71,7 +74,7 @@ android {
     sourceSets {
         getByName("main") {
             assets.srcDir("../web-ui/build/client")
-            assets.srcDir(prepareBundledCatalogAssets.map { it.destinationDir })
+            assets.srcDir(File(layout.buildDirectory.get().asFile, "generated/assets/catalog"))
         }
     }
 
@@ -243,6 +246,14 @@ tasks.matching { it.name.contains("Lint", ignoreCase = true) }.configureEach {
     dependsOn(prepareBundledCatalogAssets)
 }
 
+tasks.matching { it.name.startsWith("process") && it.name.endsWith("GoogleServices") }.configureEach {
+    onlyIf {
+        file("google-services.json").exists() ||
+            file("src/debug/google-services.json").exists() ||
+            file("src/release/google-services.json").exists()
+    }
+}
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
@@ -355,7 +366,7 @@ dependencies {
     // Paging3
     implementation(libs.androidx.paging.runtime)
     implementation(libs.androidx.paging.compose)
-    
+
     // Palette (for color extraction from images)
     implementation(libs.androidx.palette.ktx)
 

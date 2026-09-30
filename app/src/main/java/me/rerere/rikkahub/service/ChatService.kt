@@ -1657,12 +1657,16 @@ class ChatService(
                 memories = requestMemories,
                 inputTransformers = buildList {
                     addAll(defaultChatInputTransformers)
-                    val cwd = getWorkspaceCwd(
-                        assistantName = assistant?.name ?: "",
-                        chatTitle = conversation.title,
-                        chatId = conversation.id.toString()
-                    )
-                    add(WorkspaceReminderTransformer(workspaceRepository, cwd))
+                    // Agent-only: the workspace reminder invites tool use, so it
+                    // stays out of chat-mode prompts (plain conversation).
+                    if (assistant.agentMode) {
+                        val cwd = getWorkspaceCwd(
+                            assistantName = assistant?.name ?: "",
+                            chatTitle = conversation.title,
+                            chatId = conversation.id.toString()
+                        )
+                        add(WorkspaceReminderTransformer(workspaceRepository, cwd))
+                    }
                     add(templateTransformer)
                 },
                 outputTransformers = defaultChatOutputTransformers,
@@ -1894,6 +1898,12 @@ class ChatService(
         model: Model,
     ): List<Tool> {
         if (!model.abilities.contains(ModelAbility.TOOL)) return emptyList()
+        // LobeHub parity (chatModeAllowedToolIds): chat mode (assistant.agentMode
+        // == false) keeps only runtime-managed web search; every agentic tool —
+        // local, workspace, MCP, look-at-screen — is dropped here at runtime.
+        // Saved config (assistant.localTools/mcpServers/skills) is never mutated.
+        // Memory tools live in GenerationHandler and stay available in both modes.
+        val agentMode = assistant.agentMode
         return buildList {
             val useBuiltInSearch = shouldUseBuiltInSearch(model, assistant)
 
@@ -1913,12 +1923,13 @@ class ChatService(
                     options = assistant.localTools,
                     assistantId = assistant.id,
                     conversationId = conversation.id,
-                )
+                ).takeIf { agentMode } ?: emptyList()
             )
 
             val workspaceId = assistant.workspaceId?.toString()
             val workspace = workspaceId?.let { workspaceRepository.getById(it) }
             if (
+                agentMode &&
                 model.abilities.contains(ModelAbility.TOOL) &&
                 workspace != null &&
                 workspace.shellStatus == WorkspaceShellStatus.READY.name
@@ -1931,7 +1942,7 @@ class ChatService(
                 )
             }
 
-            mcpManager.getAvailableTools(assistant).forEach { (serverId, tool) ->
+            mcpManager.getAvailableTools(assistant).takeIf { agentMode }?.forEach { (serverId, tool) ->
                 add(
                     Tool(
                         name = tool.name,
@@ -1952,8 +1963,8 @@ class ChatService(
             // the assistant overlay was just summoned) and screenshot-attach is enabled. Vision
             // models get the image (injected as a follow-up USER message via
             // TOOL_RESULT_INJECT_USER_IMAGE_PARTS_KEY so it isn't stuffed into a tool result);
-            // non-vision models get OCR text.
-            if (settings.assistantOverlayConfig.attachScreenshot && AssistScreenHolder.hasFreshScreenshot()) {
+            // non-vision models get OCR text. Agent-only: chat mode is plain conversation.
+            if (agentMode && settings.assistantOverlayConfig.attachScreenshot && AssistScreenHolder.hasFreshScreenshot()) {
                 add(createLookAtScreenTool(model))
             }
         }.withUniqueToolNames()

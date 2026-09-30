@@ -592,6 +592,10 @@ class GenerationHandler(
         val providerImpl = providerManager.getProviderByType(provider)
 
         var messages: List<UIMessage> = messages
+        // LobeHub parity: chat mode (agentMode == false) resolves an empty skill
+        // set at runtime — skill tools, discovery prompts and injections below
+        // all key off these ids, so nothing agentic leaks in. Saved config untouched.
+        val agentMode = assistant.agentMode
         val allSkillIds = settings.skills
             .filter { it.instructions.isNotBlank() }
             .map { it.id }
@@ -601,7 +605,8 @@ class GenerationHandler(
             .map { it.id }
             .toSet()
             .let { assistant.enabledSkillIds.intersect(it) }
-        val conversationSkillIds = enabledModeIds
+            .takeIf { agentMode } ?: emptySet()
+        val conversationSkillIds = enabledModeIds.takeIf { agentMode } ?: emptySet()
         var currentTurnScopedSkillIds = emptySet<Uuid>()
 
         for (stepIndex in 0 until maxSteps) {
@@ -650,7 +655,7 @@ class GenerationHandler(
                     onUpdateTurnScopedSkillIds = { updatedIds ->
                         currentTurnScopedSkillIds = updatedIds.intersect(allSkillIds)
                     },
-                )?.let(this::add)
+                )?.takeIf { agentMode }?.let(this::add)
                 addAll(tools)
             }
 
@@ -931,6 +936,10 @@ class GenerationHandler(
         // Get recent message text for lorebook keyword scanning
         val recentMessagesForScan = messages.takeLast(10).map { it.toText() }
 
+        // LobeHub parity: in chat mode these resolve empty, so skill discovery
+        // (<available_skills>), injections and attachments below all no-op while
+        // lorebooks/memory/search stay untouched.
+        val agentMode = assistant.agentMode
         val availableSkills = settings.skills.filter { skill ->
             skill.enabled && skill.instructions.isNotBlank()
         }
@@ -943,11 +952,13 @@ class GenerationHandler(
             .filter { it.alwaysEnabled && assistantAvailableSkillIds.contains(it.id) }
             .map { it.id }
             .toSet()
+            .takeIf { agentMode } ?: emptySet()
         val assistantDefaultSkillIds = settings.skills
             .filter { it.enabled && it.instructions.isNotBlank() && it.isAvailableForAssistant(assistant.id) }
             .map { it.id }
             .toSet()
             .let { assistant.enabledSkillIds.intersect(it) }
+            .takeIf { agentMode } ?: emptySet()
         val activeSkillIds = resolveActiveSkillIds(
             assistantDefaultSkillIds = assistantDefaultSkillIds,
             conversationSkillIds = conversationEnabledModeIds,

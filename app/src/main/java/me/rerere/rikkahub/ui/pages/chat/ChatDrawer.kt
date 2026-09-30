@@ -483,7 +483,8 @@ fun ChatDrawerContent(
     when (presentation) {
         ChatDrawerPresentation.Modal -> {
             LastChatModalDrawerSheet(
-                modifier = Modifier.widthIn(max = drawerWidth),
+                modifier = Modifier.fillMaxSize(),
+                fullScreen = true,
             ) {
                 drawerContent()
             }

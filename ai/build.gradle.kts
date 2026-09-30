@@ -7,7 +7,7 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(21)
 
     androidTarget {
         compilerOptions.jvmTarget.set(JvmTarget.JVM_11)
@@ -18,8 +18,10 @@ kotlin {
             languageSettings.optIn("kotlin.uuid.ExperimentalUuidApi")
             languageSettings.optIn("kotlin.time.ExperimentalTime")
         }
-        commonMain {
+        androidMain {
             kotlin.srcDir("src/main/java")
+        }
+        commonMain {
             dependencies {
                 api(project(":common"))
                 api(libs.kotlinx.serialization.json)
@@ -62,7 +64,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    sourceSets.getByName("main").java.setSrcDirs(emptyList<String>())
 }
 
 dependencies {

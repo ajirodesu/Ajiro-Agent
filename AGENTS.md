@@ -253,3 +253,24 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+## Agent skills routing
+
+Always route work through the skill or subagent that suits the task. OpenCode discovers `.agents/skills/` and `.agents/rules/` automatically. Prefer the skipless default `build` agent only for trivial edits.
+
+- Planning and task decomposition: `/gandalf` (`.opencode/agents/gandalf.md`).
+- Architecture review (Clean Architecture, MVVM, module isolation): `/aragorn` (`.opencode/agents/aragorn.md`) plus `.agents/skills/clean-architecture/`.
+- Implementing a planned change: `/frodo` (`.opencode/agents/frodo.md`).
+- Lint and syntax review without editing: `/legolas` (`.opencode/agents/legolas.md`).
+- TDD gate (JUnit5 plus MockK, Red-Green-Refactor): `/merry` (`.opencode/agents/merry.md`) plus `.agents/skills/testing-principles/` and `.agents/skills/write-a-test/`.
+- Compose UI work: `.agents/skills/design-engineering/` for routing plus `.agents/rules/android-compose-design.md` (Material 3 tokens, 48dp touch minimum, 4dp/8dp grid, `PremiumHaptics`, `MotionPolicy`, `Icons.Rounded` only).
+- Terse output preserving code precision: `/caveman-lite` (Caveman `lite` tier).
+- Model catalog edits: read `.agents/skills/lastchat-catalog/SKILL.md` first (see Catalog section above).
+- Codebase and architecture questions: `/graphify` first (see graphify section above).
+
+## Sauron CLI loop
+
+Sauron (`sauron-ai@1.3.0` via npx) is file-based: no daemon, no live MCP server in v1.3.0 (`mcp-index` emits a static 165-skill index only). Use it explicitly:
+- `npx --yes sauron-ai status` and `npx --yes sauron-ai fitness` to verify harness health. Fitness must pass after touching `sauron.config.yaml`, `.opencode/`, or `.agents/`.
+- `npx --yes sauron-ai list-skills` to find capabilities; `npx --yes sauron-ai add <skill>` pulls any of the 165 indexed skills into `.agents/skills/` on demand.
+- `npx --yes sauron-ai sync --dry-run` before `sync`. Sync is static transpilation: it rewrites all 17 runtime files regardless of `runtimes` flags, so re-apply the Android appendage in `.opencode/instructions.md` if sync overwrites it.

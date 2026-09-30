@@ -801,32 +801,38 @@ fun MinimalChatInput(
     }
 
     // Message capsule spacing (ChatGPT-style, dp only, never px):
-    // 14.dp uniform on three sides: horizontal margins 14.dp, bottom gap
-    // 14.dp above the keyboard when open, 14.dp above the gesture bar
-    // when closed. windowInsetsPadding(ime.union(navigationBars)) comes
-    // BEFORE the 14.dp bottom padding so no extra inset stacks on top and
-    // the gap stays exactly 14.dp. Capsule is a 55.dp pill
+    // Inactive (empty + unfocused) the capsule floats narrow with wide
+    // side margins (IdleMarginFraction of the screen per side). Active
+    // (focused or has content) it stretches to ActiveMargin per side.
+    // Bottom gap stays 14.dp above the keyboard when open, 14.dp above
+    // the gesture bar when closed. windowInsetsPadding(ime.union(navigationBars))
+    // comes BEFORE the 14.dp bottom padding so no extra inset stacks on
+    // top and the gap stays exactly 14.dp. Capsule is a 55.dp pill
     // (radius = height / 2) with a 37.dp trailing action button.
-    val capsuleHInset = 14.dp
-    val capsuleBottomGap = 14.dp
-    val capsuleHeight = 55.dp
-    val capsuleDensity = LocalDensity.current // Kept for line-height conversion below.
+    // Text state is hoisted here so the margin target above the capsule
+    // and the layout switch below it read the same source.
+    val activeTextState = when {
+        isQuestionnaireActive -> questionnaireTextState
+        isToolApprovalActive -> toolApprovalTextState
+        else -> state.textContent
+    }
+    val composerHasContent = activeTextState.text.isNotEmpty() ||
+        state.messageContent.isNotEmpty()
+    val isCapsuleActive = isFocused || composerHasContent ||
+        isQuestionnaireActive || isToolApprovalActive
+    val idleHInset =
+        androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp *
+            MessageCapsuleBehavior.IdleMarginFraction
     val animatedCapsuleHInset by animateDpAsState(
-        targetValue = capsuleHInset,
+        targetValue = if (isCapsuleActive) MessageCapsuleBehavior.ActiveMargin else idleHInset,
         animationSpec = tween(
-            durationMillis = 200,
-            easing = androidx.compose.animation.core.FastOutSlowInEasing
+            durationMillis = MessageCapsuleBehavior.MarginAnimationMs,
+            easing = MessageCapsuleBehavior.Easing
         ),
         label = "capsule_h_inset"
     )
-    val animatedCapsuleBottomGap by animateDpAsState(
-        targetValue = capsuleBottomGap,
-        animationSpec = tween(
-            durationMillis = 200,
-            easing = androidx.compose.animation.core.FastOutSlowInEasing
-        ),
-        label = "capsule_bottom_gap"
-    )
+    val capsuleBottomGap = 14.dp
+    val capsuleHeight = 55.dp
     // Lowest suggestion row: vertical center ~43.dp above the capsule top.
     // Row is 36.dp tall with 8.dp column spacing, so the extra pad below it
     // keeps that spacing in dp only.
@@ -841,7 +847,8 @@ fun MinimalChatInput(
     ) {
         Column(
             // Capsule spacing (ChatGPT-style, dp only):
-            // fillMaxWidth + horizontal 14.dp, then
+            // fillMaxWidth + animated horizontal inset (wide while idle,
+            // ActiveMargin while focused/with content), then
             // windowInsetsPadding(ime.union(navigationBars)) follows the
             // keyboard when open and the gesture bar when closed, then a
             // final 14.dp bottom gap AFTER the inset so the gap is exactly
@@ -850,7 +857,7 @@ fun MinimalChatInput(
                 .fillMaxWidth()
                 .padding(horizontal = animatedCapsuleHInset)
                 .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
-                .padding(bottom = animatedCapsuleBottomGap),
+                .padding(bottom = capsuleBottomGap),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val showSuggestions = !isQuestionnaireActive && !isToolApprovalActive && chatSuggestions.isNotEmpty()
@@ -1013,18 +1020,77 @@ fun MinimalChatInput(
             // Fixed 55.dp pill (radius = height / 2) in the empty state;
             // grows only once focused with content. Height never animates
             // between states -- only insets/gap do.
-            // Wrapped text stays in the text column between the buttons:
-            // the second line starts at the same X as the first line's text
-            // (just after the + button) and ends at the same X as the first
-            // line's text (just before the send button). The + and send
-            // buttons are only visual references for those column edges --
-            // text never slides under the actual buttons.
+            // Split layout (demo stages 2-13): once text wraps to 2+ visual
+            // lines, text takes full width on top and actions move to a
+            // bottom row (+ left; expand/mic/send right). A short single
+            // line keeps the inline pill row (demo stage 1). A long single
+            // line that overflows the inline width also splits (demo stage 2).
+            // activeTextState is hoisted above the capsule so margins share it;
+            // the field reports visual lines via onTextLayout below.
+            var visualLineCount by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(1) }
+            var firstLineWidthPx by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+            // Remembered so the subscription survives recomposition; a fresh
+            // derivedStateOf per recomposition would lose tracking and go stale.
+            val lineCount by androidx.compose.runtime.remember {
+                androidx.compose.runtime.derivedStateOf {
+                    maxOf(activeTextState.text.toString().lines().size, visualLineCount)
+                }
+            }
+            val isMultilineInput = lineCount >= MessageCapsuleBehavior.MultilineAtLines
+            // Enter split when wrapped OR when the single line overflows the
+            // inline width; leave only when the single line fits inline again.
+            // Direct assignment (no hold) so a long overflow line splits on
+            // entry instead of sticking in the pill row.
+            val capsuleDensity = LocalDensity.current
+            val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+            val inlineBudgetPx = androidx.compose.runtime.remember(capsuleDensity, screenWidthDp) {
+                // Active capsule width minus the inner row
+                // (leading 8 + plus 37 + gap 8 + action pad 6 + button 37 + end 6).
+                with(capsuleDensity) {
+                    (screenWidthDp.dp - MessageCapsuleBehavior.ActiveMargin * 2 - 102.dp)
+                        .coerceAtLeast(0.dp).toPx()
+                }
+            }
+            val fitsInline = firstLineWidthPx <= inlineBudgetPx
+            var isSplitLayout by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            LaunchedEffect(lineCount, fitsInline, isQuestionnaireActive, isToolApprovalActive) {
+                isSplitLayout = if (isQuestionnaireActive || isToolApprovalActive) {
+                    false
+                } else if (isMultilineInput) {
+                    true
+                } else {
+                    !fitsInline
+                }
+            }
+            // The mode switch swaps the text field node, which drops focus.
+            // Refocus so the keyboard stays up and the capsule keeps its
+            // content-driven height instead of snapping to 55.dp.
+            var prevSplitLayout by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(isSplitLayout) }
+            LaunchedEffect(isSplitLayout) {
+                if (isSplitLayout != prevSplitLayout) {
+                    prevSplitLayout = isSplitLayout
+                    state.focusRequester.requestFocus()
+                }
+            }
+            val showExpandButton = !isExpandedFullScreen &&
+                lineCount >= MessageCapsuleBehavior.ExpandAtLines &&
+                !isQuestionnaireActive && !isToolApprovalActive
+            // Hoisted so the animation state survives recomposition instead of
+            // being recreated inside the padding calculation on every frame.
+            val inputEndPadding by androidx.compose.animation.core.animateDpAsState(
+                targetValue = if ((sttRecording || sttFinalizing) && hasSelectedSttProvider) 150.dp else 52.dp,
+                animationSpec = tween(220),
+                label = "input_padding"
+            )
+            // Pill while single-line; fixed large radius once split (demo stages 2-13).
             // Text field capsule with embedded 37.dp action button
-            val inputShape = RoundedCornerShape(capsuleHeight / 2)
-            // Growth gate: empty stays exactly 55.dp; focused with
-            // content may grow upward via min-height instead of fixed height.
+            val inputShape = if (isSplitLayout) RoundedCornerShape(28.dp) else RoundedCornerShape(capsuleHeight / 2)
+            // Growth gate: empty stays exactly 55.dp; with content the
+            // capsule grows upward via min-height instead of fixed height.
+            // composerHasContent covers the visible field (chat text,
+            // questionnaire, or approval) plus attachments.
             val capsuleHeightModifier =
-                if (isFocused && !state.isEmpty()) Modifier.heightIn(min = capsuleHeight)
+                if (isFocused || composerHasContent) Modifier.heightIn(min = capsuleHeight)
                 else Modifier.height(capsuleHeight)
             LastChatComposerRow {
                 LastChatComposerCapsule(
@@ -1113,22 +1179,14 @@ fun MinimalChatInput(
                             }
                         }
 
-                        // Single row: [+] [field ............]
-                        // Vertically centered (upper/lower middle), not bottom-anchored,
-                        // so the + button and placeholder sit mid-capsule.
-                        // Inner layout in dp: 8.dp leading inset, 37.dp +
-                        // button, 8.dp gap to the text column. Wrapped lines
-                        // stay inside the text column (see capsule comment).
-                        // (action button stays overlaid end-side, expand stays top-end)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 8.dp, end = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            // Plus button - dedicated container matching the Send
-                            // container size/shape/alignment, former + background
-                            // color. Border appears only while active/open.
+                        // Capsule content pieces shared by both layouts (demo-accurate):
+                        // single-line pill row (stage 1) and split column with
+                        // bottom action row (stages 2-13).
+                        val onExpandInput: () -> Unit = {
+                            haptics.perform(HapticPattern.Pop)
+                            isExpandedFullScreen = true
+                        }
+                        val plusButtonContent: @Composable () -> Unit = {
                             if (!isQuestionnaireActive && !isToolApprovalActive) {
                                 LastChatComposerPlusButton(
                                     active = plusMenu.isOpen,
@@ -1164,194 +1222,140 @@ fun MinimalChatInput(
                                 // placeholder closer to the left.
                                 Spacer(modifier = Modifier.width(8.dp))
                             }
-                        // Text input with content receiver for paste + overlaid action button
-                        Box(
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            androidx.compose.animation.AnimatedVisibility(
-                                visible = (sttRecording || sttFinalizing) && hasSelectedSttProvider,
-                                enter = fadeIn(spring(dampingRatio = 0.6f, stiffness = 300f)),
-                                exit = fadeOut(tween(140)),
-                                modifier = Modifier
-                                    .matchParentSize()
-                                    .zIndex(10f)
-                            ) {
-                                Surface(
-                                    color = blurredContainerColor(MaterialTheme.colorScheme.surfaceContainer),
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .lastChatBlurEffect(MaterialTheme.colorScheme.surfaceContainer, inputShape)
-                                        .clickable(
-                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                            indication = null
-                                        ) {
-                                            if (sttRecording || sttFinalizing) {
-                                                haptics.perform(HapticPattern.Pop)
-                                                stopSttRecording(accept = true)
-                                            }
-                                        }
-                                ) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize().padding(
-                                            top = 12.dp,
-                                            bottom = 12.dp,
-                                        ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        androidx.compose.animation.AnimatedVisibility(
-                                            visible = true,
-                                            enter = slideInHorizontally(
-                                                initialOffsetX = { it / 2 },
-                                                animationSpec = spring(dampingRatio = 0.6f, stiffness = 300f)
-                                            ),
-                                            exit = slideOutHorizontally(
-                                                targetOffsetX = { it / 2 },
-                                                animationSpec = tween(140)
-                                            )
-                                        ) {
-                                            if (sttFinalizing) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(24.dp),
-                                                    strokeWidth = 2.dp,
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                )
-                                            } else {
-                                                STTWaveformLine(
-                                                    amplitudes = sttState.amplitudes,
-                                                    active = sttRecording,
-                                                    modifier = Modifier.fillMaxWidth().height(24.dp),
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            val activeTextState = when {
-                                isQuestionnaireActive -> questionnaireTextState
-                                isToolApprovalActive -> toolApprovalTextState
-                                else -> state.textContent
-                            }
-                            var visualLineCount by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(1) }
-                            // Remembered so the subscription survives recomposition; a fresh
-                            // derivedStateOf per recomposition would lose tracking and go stale.
-                            val lineCount by androidx.compose.runtime.remember {
-                                androidx.compose.runtime.derivedStateOf {
-                                    maxOf(activeTextState.text.toString().lines().size, visualLineCount)
-                                }
-                            }
-                            // Bottom-anchored upward expansion: the default line stays
-                            // the bottom line. Once text wraps (>= 2 rendered lines),
-                            // reserve one text-line height below the field so wrapped
-                            // text occupies the lines above and the default bottom
-                            // line stays empty. Single-line state keeps zero spacer.
-                            val isMultilineInput = lineCount >= 2
-                            val reservedDefaultLineHeight = with(LocalDensity.current) {
-                                MaterialTheme.typography.bodyLarge.lineHeight.toDp()
-                            }
-                            // Hoisted so the animation state survives recomposition instead of
-                            // being recreated inside the padding calculation on every frame.
-                            val inputEndPadding by androidx.compose.animation.core.animateDpAsState(
-                                targetValue = if ((sttRecording || sttFinalizing) && hasSelectedSttProvider) 150.dp else 52.dp,
-                                animationSpec = tween(220),
-                                label = "input_padding"
-                            )
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.Bottom,
-                                horizontalAlignment = Alignment.Start,
-                            ) {
-                            TextField(
-                                state = activeTextState,
-                                onTextLayout = { getResult ->
-                                    val result = getResult()
-                                    if (result != null) {
-                                        visualLineCount = result.lineCount
-                                    }
-                                },
-                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .defaultMinSize(minHeight = 1.dp)  // Override internal min height (56dp)
-                                    .focusRequester(state.focusRequester)
-                                    .then(
-                                        if (isQuestionnaireActive || isToolApprovalActive) {
-                                            Modifier
-                                        } else {
-                                            Modifier.contentReceiver(receiveContentListener)
-                                        }
-                                    )
-                                    .onFocusChanged { isFocused = it.isFocused }
-                                    .sendOnHardwareEnter { sendMessage() },
-                                placeholder = {
+                        }
+                        val composerFieldContent: @Composable (Dp, Dp, Dp, Modifier) -> Unit =
+                            { endPad, topPad, bottomPad, boxModifier ->
+                                Box(modifier = boxModifier) {
                                     androidx.compose.animation.AnimatedVisibility(
-                                        visible = !((sttRecording || sttFinalizing) && hasSelectedSttProvider),
-                                        enter = fadeIn(tween(220)),
-                                        exit = fadeOut(tween(140))
+                                        visible = (sttRecording || sttFinalizing) && hasSelectedSttProvider,
+                                        enter = fadeIn(spring(dampingRatio = 0.6f, stiffness = 300f)),
+                                        exit = fadeOut(tween(140)),
+                                        modifier = Modifier
+                                            .matchParentSize()
+                                            .zIndex(10f)
                                     ) {
-                                        Text(
-                                            text = if (isQuestionnaireActive) {
-                                                stringResource(R.string.character_questions_custom_answer_placeholder)
-                                            } else if (isToolApprovalActive) {
-                                                stringResource(R.string.tool_approval_input_placeholder)
-                                            } else {
-                                                stringResource(R.string.minimal_chat_input_placeholder, assistant.name)
-                                            },
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
+                                        Surface(
+                                            color = blurredContainerColor(MaterialTheme.colorScheme.surfaceContainer),
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .lastChatBlurEffect(MaterialTheme.colorScheme.surfaceContainer, inputShape)
+                                                .clickable(
+                                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                                    indication = null
+                                                ) {
+                                                    if (sttRecording || sttFinalizing) {
+                                                        haptics.perform(HapticPattern.Pop)
+                                                        stopSttRecording(accept = true)
+                                                    }
+                                                }
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.fillMaxSize().padding(
+                                                    top = 12.dp,
+                                                    bottom = 12.dp,
+                                                ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                androidx.compose.animation.AnimatedVisibility(
+                                                    visible = true,
+                                                    enter = slideInHorizontally(
+                                                        initialOffsetX = { it / 2 },
+                                                        animationSpec = spring(dampingRatio = 0.6f, stiffness = 300f)
+                                                    ),
+                                                    exit = slideOutHorizontally(
+                                                        targetOffsetX = { it / 2 },
+                                                        animationSpec = tween(140)
+                                                    )
+                                                ) {
+                                                    if (sttFinalizing) {
+                                                        CircularProgressIndicator(
+                                                            modifier = Modifier.size(24.dp),
+                                                            strokeWidth = 2.dp,
+                                                            color = MaterialTheme.colorScheme.primary,
+                                                        )
+                                                    } else {
+                                                        STTWaveformLine(
+                                                            amplitudes = sttState.amplitudes,
+                                                            active = sttRecording,
+                                                            modifier = Modifier.fillMaxWidth().height(24.dp),
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
-                                },
-                                // Up to 10 actual text lines; the reserved empty
-                                // default bottom line below the field is excluded
-                                // from this limit. At line 11 the field scrolls
-                                // internally at a stable max height with the caret
-                                // kept visible by the text input itself.
-                                lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 10),
-                                // Zero vertical padding: the fixed-height capsule
-                                // centers the field, so padding would push it off-center.
-                                // Slim start inset pulls the placeholder closer to
-                                // the + button while keeping decent spacing.
-                                contentPadding = PaddingValues(
-                                    start = 8.dp,
-                                    top = 0.dp,
-                                    end = inputEndPadding,
-                                    bottom = 0.dp,
-                                ),
-                                colors = TextFieldDefaults.colors().copy(
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                )
-                            )
-                            // Empty default bottom line: present only in
-                            // multiline state; zero height when single-line so
-                            // the original appearance and height return exactly.
-                            if (isMultilineInput) {
-                                Spacer(modifier = Modifier.height(reservedDefaultLineHeight))
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.Bottom,
+                                        horizontalAlignment = Alignment.Start,
+                                    ) {
+                                    TextField(
+                                        state = activeTextState,
+                                        onTextLayout = { getResult ->
+                                            val result = getResult()
+                                            if (result != null) {
+                                                visualLineCount = result.lineCount
+                                                firstLineWidthPx =
+                                                    if (result.lineCount == 1) result.getLineRight(0) - result.getLineLeft(0)
+                                                    else 0f
+                                            }
+                                        },
+                                        textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .defaultMinSize(minHeight = 1.dp)  // Override internal min height (56dp)
+                                            .focusRequester(state.focusRequester)
+                                            .then(
+                                                if (isQuestionnaireActive || isToolApprovalActive) {
+                                                    Modifier
+                                                } else {
+                                                    Modifier.contentReceiver(receiveContentListener)
+                                                }
+                                            )
+                                            .onFocusChanged { isFocused = it.isFocused }
+                                            .sendOnHardwareEnter { sendMessage() },
+                                        placeholder = {
+                                            androidx.compose.animation.AnimatedVisibility(
+                                                visible = !((sttRecording || sttFinalizing) && hasSelectedSttProvider),
+                                                enter = fadeIn(tween(220)),
+                                                exit = fadeOut(tween(140))
+                                            ) {
+                                                Text(
+                                                    text = if (isQuestionnaireActive) {
+                                                        stringResource(R.string.character_questions_custom_answer_placeholder)
+                                                    } else if (isToolApprovalActive) {
+                                                        stringResource(R.string.tool_approval_input_placeholder)
+                                                    } else {
+                                                        stringResource(R.string.minimal_chat_input_placeholder, assistant.name)
+                                                    },
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        },
+                                        // Up to 10 text lines; at line 11 the field
+                                        // scrolls internally (demo stage 13) at a
+                                        // stable max height with the caret kept
+                                        // visible by the text input itself.
+                                        lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 10),
+                                        contentPadding = PaddingValues(
+                                            start = 8.dp,
+                                            top = topPad,
+                                            end = endPad,
+                                            bottom = bottomPad,
+                                        ),
+                                        colors = TextFieldDefaults.colors().copy(
+                                            unfocusedIndicatorColor = Color.Transparent,
+                                            focusedIndicatorColor = Color.Transparent,
+                                            focusedContainerColor = Color.Transparent,
+                                            unfocusedContainerColor = Color.Transparent,
+                                        )
+                                    )
+                                    } // bottom-anchored text column ends
+                                }
                             }
-                            } // bottom-anchored text column ends
-
-                            ExpandButtonOverlay(
-                                isVisible = !isExpandedFullScreen && lineCount >= 5 && !isQuestionnaireActive && !isToolApprovalActive,
-                                onExpand = {
-                                    haptics.perform(HapticPattern.Pop)
-                                    isExpandedFullScreen = true
-                                },
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(end = 4.dp, top = 4.dp)
-                            )
-
-                            // Action button: 37.dp circle, 6.dp from the capsule's
-                            // right edge, vertically centered in the 55.dp pill.
-                            // No vertical padding inside the row: it would push
-                            // the button off-center in the fixed-height capsule.
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.CenterEnd)
-                                    .padding(start = 6.dp, end = 0.dp)
-                            ) {
+                        val actionButtonContent: @Composable (Modifier) -> Unit = { boxModifier ->
+                            Box(modifier = boxModifier) {
                                 AttachmentImportAction(
                                     isImporting = isImportingAttachments,
                                     modifier = Modifier.size(37.dp),
@@ -1458,8 +1462,89 @@ fun MinimalChatInput(
                                 }
                                 }
                             }
+                        }
+                        // Single row: [+] [field ............]
+                        // Vertically centered (upper/lower middle), not bottom-anchored,
+                        // so the + button and placeholder sit mid-capsule.
+                        // Inner layout in dp: 8.dp leading inset, 37.dp +
+                        // button, 8.dp gap to the text column. Wrapped lines
+                        // stay inside the text column (see capsule comment).
+                        // (split layout: text on top, actions in a bottom row)
+                        if (isSplitLayout) {
+                            // Demo stages 2-13: text full width on top, action
+                            // row below (+ left; expand/mic/send right).
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                            ) {
+                                composerFieldContent(
+                                    8.dp, // endPad: no overlaid button in split layout
+                                    8.dp, // topPad
+                                    8.dp, // bottomPad
+                                    Modifier.fillMaxWidth() // boxModifier
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    plusButtonContent()
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    ExpandButtonOverlay(
+                                        isVisible = showExpandButton,
+                                        onExpand = onExpandInput,
+                                        modifier = Modifier
+                                    )
+                                    actionButtonContent(
+                                        Modifier.padding(start = 6.dp)
+                                    )
+                                }
+                            }
+                        } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 8.dp, end = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // Plus button - dedicated container matching the Send
+                            // container size/shape/alignment, former + background
+                            // color. Border appears only while active/open.
+                            plusButtonContent()
+                        // Text input with content receiver for paste + overlaid action button
+                        Box(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            composerFieldContent(
+                                inputEndPadding, // endPad: reserves overlaid action button
+                                0.dp, // topPad: fixed pill centers the field
+                                0.dp, // bottomPad
+                                Modifier.fillMaxWidth() // boxModifier
+                            )
+                            // (field moved into composerFieldContent above)
+
+                            ExpandButtonOverlay(
+                                isVisible = showExpandButton && !isSplitLayout,
+                                onExpand = onExpandInput,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(end = 4.dp, top = 4.dp)
+                            )
+
+                            // Action button: 37.dp circle, 6.dp from the capsule's
+                            // right edge, vertically centered in the 55.dp pill.
+                            // No vertical padding inside the row: it would push
+                            // the button off-center in the fixed-height capsule.
+                            actionButtonContent(
+                                Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .padding(start = 6.dp, end = 0.dp)
+                            )
                         }  // Box for TextField + Action button ends
                         }  // capsule content Row ends
+                        }  // split-layout branch ends
                     }  // Column ends
                 }  // Surface ends
             }  // Row ends
